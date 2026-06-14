@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Translator Speaker",
+    "slug": "translator-speaker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Translator Speaker to record speech for live transcription."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "permissions": ["RECORD_AUDIO"]
+    }
+  }
+}
