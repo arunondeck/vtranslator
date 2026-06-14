@@ -7,7 +7,7 @@
     "start": "expo start",
     "dev": "expo start",
     "build": "tsc --noEmit",
-    "lint": "eslint App.tsx",
+    "lint": "eslint App.tsx src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
