@@ -18,10 +18,10 @@ export class MockTranscriptionProvider implements TranscriptionProvider {
   ): Promise<TranscriptMap> {
     await new Promise((resolve) => setTimeout(resolve, 250));
     return {
-      en: `Demo transcript segment ${sequence}.`,
-      ml: `ഡെമോ ട്രാൻസ്ക്രിപ്റ്റ് ഭാഗം ${sequence}.`,
-      hi: `डेमो ट्रांसक्रिप्ट भाग ${sequence}।`,
-      bn: `ডেমো ট্রান্সক্রিপ্ট অংশ ${sequence}।`,
+      en: `English live transcript sequence ${sequence}`,
+      ml: `Malayalam live transcript sequence ${sequence}`,
+      hi: `Hindi live transcript sequence ${sequence}`,
+      bn: `Bengali live transcript sequence ${sequence}`,
     };
   }
 }
@@ -84,9 +84,15 @@ export class SarvamProvider implements TranscriptionProvider {
 }
 
 export function createProvider(): TranscriptionProvider {
+  const useMockTranscription = process.env.USE_MOCK_TRANSCRIPTION?.trim().toLowerCase();
   const apiKey = process.env.SARVAM_API_KEY?.trim();
-  if (!apiKey) {
-    console.warn('SARVAM_API_KEY is not set; using mock transcription.');
+
+  if (useMockTranscription === 'true' || !apiKey) {
+    if (!apiKey && useMockTranscription !== 'true') {
+      console.warn('SARVAM_API_KEY is not set; using mock transcription.');
+    } else {
+      console.log('Mock transcription is enabled.');
+    }
     return new MockTranscriptionProvider();
   }
   return new SarvamProvider(

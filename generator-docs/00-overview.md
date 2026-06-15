@@ -44,7 +44,8 @@ translator-mvp/
 │   ├── 00-overview.md
 │   ├── 01-backend-agent.md
 │   ├── 02-speaker-app-agent.md
-│   └── 03-viewer-app-agent.md
+│   ├── 03-viewer-app-agent.md
+│   └── 04-integration-and-testing.md
 │
 ├── package.json
 ├── turbo.json

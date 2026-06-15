@@ -16,6 +16,8 @@ and Sarvam AI.
 ```bash
 pnpm install
 cp .env.example services/realtime-backend/.env
+cp apps/speaker-app/.env.example apps/speaker-app/.env
+cp apps/viewer-app/.env.example apps/viewer-app/.env
 pnpm dev
 ```
 
@@ -28,9 +30,10 @@ pnpm --filter speaker-app start
 pnpm --filter viewer-app start
 ```
 
-Without `SARVAM_API_KEY`, the backend uses deterministic demo transcripts so
-the complete socket flow can be tested locally. With a key, each recorded
-segment is transcribed to English and translated into Malayalam, Hindi, and
+With `USE_MOCK_TRANSCRIPTION=true`, or without `SARVAM_API_KEY`, the backend
+uses deterministic demo transcripts so the complete socket flow can be tested
+locally. Set `USE_MOCK_TRANSCRIPTION=false` and provide a key to transcribe
+each recorded segment to English and translate it into Malayalam, Hindi, and
 Bengali through Sarvam's REST API.
 
 ## API

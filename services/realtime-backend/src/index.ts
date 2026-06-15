@@ -44,22 +44,35 @@ const provider = createProvider();
 
 app.use(cors({ origin: corsOrigin }));
 app.get('/health', (_request, response) => {
-  response.json({ ok: true, activeSessions: [...sessions.values()].filter((s) => s.active).length });
+  response.json({ ok: true, service: 'realtime-backend' });
 });
 
 io.on('connection', (socket) => {
-  socket.on(SOCKET_EVENTS.SPEAKER_START, ({ sessionId }) => {
+  console.log('client connected', socket.id);
+
+  socket.on(SOCKET_EVENTS.SPEAKER_START, (payload) => {
+    if (!isSpeakerStartPayload(payload)) {
+      emitSpeakerError(socket, 'Invalid speaker start payload.', 'INVALID_START');
+      return;
+    }
+    const { sessionId } = payload;
     const existing = sessionId ? sessions.get(sessionId) : undefined;
     const session = existing ?? createSession();
     session.active = true;
     socket.join(roomFor(session.id));
+    console.log('speaker connected', socket.id);
+    console.log('session created', session.id);
     socket.emit(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, { sessionId: session.id });
   });
 
   socket.on(SOCKET_EVENTS.SPEAKER_AUDIO_CHUNK, (payload) => {
+    if (!isSpeakerAudioChunkPayload(payload)) {
+      emitSpeakerError(socket, 'Invalid audio chunk payload.', 'INVALID_CHUNK');
+      return;
+    }
     const error = validateChunk(payload);
     if (error) {
-      socket.emit(SOCKET_EVENTS.SPEAKER_ERROR, { message: error, code: 'INVALID_CHUNK' });
+      emitSpeakerError(socket, error, 'INVALID_CHUNK');
       return;
     }
     const session = sessions.get(payload.sessionId);
@@ -70,6 +83,7 @@ io.on('connection', (socket) => {
       });
       return;
     }
+    console.log('audio chunk received', session.id, payload.sequence);
     session.processing = session.processing
       .then(() => processChunk(session, payload))
       .catch((cause: unknown) => {
@@ -81,12 +95,22 @@ io.on('connection', (socket) => {
       });
   });
 
-  socket.on(SOCKET_EVENTS.SPEAKER_STOP, ({ sessionId }) => {
+  socket.on(SOCKET_EVENTS.SPEAKER_STOP, (payload) => {
+    if (!isSpeakerStopPayload(payload)) {
+      emitSpeakerError(socket, 'Invalid speaker stop payload.', 'INVALID_STOP');
+      return;
+    }
+    const { sessionId } = payload;
     const session = sessions.get(sessionId);
     if (session) session.active = false;
   });
 
-  socket.on(SOCKET_EVENTS.VIEWER_JOIN, ({ sessionId, language }) => {
+  socket.on(SOCKET_EVENTS.VIEWER_JOIN, (payload) => {
+    if (!isViewerJoinPayload(payload)) {
+      emitViewerError(socket, 'Invalid viewer join payload.', 'INVALID_JOIN');
+      return;
+    }
+    const { sessionId, language } = payload;
     if (!SUPPORTED_LANGUAGES.includes(language)) {
       socket.emit(SOCKET_EVENTS.VIEWER_ERROR, {
         message: 'Unsupported language.',
@@ -105,7 +129,12 @@ io.on('connection', (socket) => {
     joinViewer(socket, session, language);
   });
 
-  socket.on(SOCKET_EVENTS.VIEWER_SET_LANGUAGE, ({ language }) => {
+  socket.on(SOCKET_EVENTS.VIEWER_SET_LANGUAGE, (payload) => {
+    if (!isViewerSetLanguagePayload(payload)) {
+      emitViewerError(socket, 'Invalid language payload.', 'INVALID_LANGUAGE');
+      return;
+    }
+    const { language } = payload;
     const session = socket.data.viewerSessionId
       ? sessions.get(socket.data.viewerSessionId)
       : undefined;
@@ -134,7 +163,7 @@ server.listen(port, () => console.log(`Realtime backend listening on http://loca
 function createSession(): Session {
   const now = new Date().toISOString();
   const session: Session = {
-    id: randomUUID(),
+    id: `session_${randomUUID().replaceAll('-', '').slice(0, 12)}`,
     active: true,
     transcripts: { ...EMPTY_TRANSCRIPTS },
     sequence: 0,
@@ -174,6 +203,7 @@ async function processChunk(session: Session, payload: SpeakerAudioChunkPayload)
       updatedAt: session.updatedAt,
     });
   }
+  console.log('transcript emitted', session.id, session.sequence);
 }
 
 function joinViewer(
@@ -206,4 +236,55 @@ function validateChunk(payload: SpeakerAudioChunkPayload): string | undefined {
   if (!payload.sessionId || !payload.chunk || !payload.mimeType) return 'Missing audio fields.';
   if (!Number.isInteger(payload.sequence) || payload.sequence < 1) return 'Invalid sequence.';
   return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isSpeakerStartPayload(payload: unknown): payload is { sessionId?: string } {
+  return isRecord(payload) &&
+    (payload.sessionId === undefined || typeof payload.sessionId === 'string');
+}
+
+function isSpeakerAudioChunkPayload(payload: unknown): payload is SpeakerAudioChunkPayload {
+  return isRecord(payload) &&
+    typeof payload.sessionId === 'string' &&
+    typeof payload.chunk === 'string' &&
+    typeof payload.mimeType === 'string' &&
+    typeof payload.sequence === 'number';
+}
+
+function isSpeakerStopPayload(payload: unknown): payload is { sessionId: string } {
+  return isRecord(payload) && typeof payload.sessionId === 'string';
+}
+
+function isViewerJoinPayload(
+  payload: unknown,
+): payload is { sessionId?: string; language: SupportedLanguage } {
+  return isRecord(payload) &&
+    (payload.sessionId === undefined || typeof payload.sessionId === 'string') &&
+    typeof payload.language === 'string';
+}
+
+function isViewerSetLanguagePayload(
+  payload: unknown,
+): payload is { language: SupportedLanguage } {
+  return isRecord(payload) && typeof payload.language === 'string';
+}
+
+function emitSpeakerError(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents, object, SocketData>,
+  message: string,
+  code: string,
+): void {
+  socket.emit(SOCKET_EVENTS.SPEAKER_ERROR, { message, code });
+}
+
+function emitViewerError(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents, object, SocketData>,
+  message: string,
+  code: string,
+): void {
+  socket.emit(SOCKET_EVENTS.VIEWER_ERROR, { message, code });
 }

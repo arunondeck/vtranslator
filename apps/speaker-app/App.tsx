@@ -20,18 +20,30 @@ export default function App() {
   const activeRef = useRef(false);
   const sessionRef = useRef<string>();
   const sequenceRef = useRef(0);
+  const [connected, setConnected] = useState(false);
+  const [sessionId, setSessionId] = useState<string>();
   const [status, setStatus] = useState('Connecting…');
   const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(backendUrl);
     socketRef.current = socket;
-    socket.on('connect', () => setStatus('Ready to speak'));
-    socket.on('disconnect', () => setStatus('Disconnected'));
+    socket.on('connect', () => {
+      setConnected(true);
+      setStatus(activeRef.current ? 'Reconnecting session…' : 'Ready to speak');
+      if (activeRef.current) {
+        socket.emit(SOCKET_EVENTS.SPEAKER_START, { sessionId: sessionRef.current });
+      }
+    });
+    socket.on('disconnect', () => {
+      setConnected(false);
+      setStatus('Disconnected');
+    });
     socket.on(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, ({ sessionId }) => {
       sessionRef.current = sessionId;
+      setSessionId(sessionId);
       setStatus('Listening…');
-      void recordSegment();
+      if (!recordingRef.current) void recordSegment();
     });
     socket.on(SOCKET_EVENTS.SPEAKER_ERROR, ({ message }) => setStatus(message));
     return () => {
@@ -56,6 +68,7 @@ export default function App() {
     sequenceRef.current = 0;
     setIsRecording(true);
     setStatus('Starting session…');
+    setSessionId(undefined);
     socketRef.current?.emit(SOCKET_EVENTS.SPEAKER_START, {});
   }
 
@@ -116,6 +129,9 @@ export default function App() {
         <Text style={styles.description}>
           Tap once and speak naturally. Your words will appear live for viewers.
         </Text>
+        <Text style={styles.connection}>
+          Socket: {connected ? 'connected' : 'disconnected'}
+        </Text>
         <Pressable
           accessibilityRole="button"
           onPress={() => void toggleRecording()}
@@ -125,6 +141,9 @@ export default function App() {
           <Text style={styles.buttonText}>{isRecording ? 'Stop talking' : 'Start talking'}</Text>
         </Pressable>
         <Text style={styles.status}>{status}</Text>
+        <Text style={styles.session}>
+          {sessionId ? `Session ID: ${sessionId}` : 'Session ID: not started'}
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -162,4 +181,6 @@ const styles = StyleSheet.create({
   stopIcon: { width: 28, height: 28, borderRadius: 4 },
   buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginTop: 14 },
   status: { color: '#5C6D66', marginTop: 30, fontSize: 15 },
+  connection: { color: '#496158', fontSize: 14, marginBottom: 20 },
+  session: { color: '#718078', marginTop: 8, fontSize: 12 },
 });

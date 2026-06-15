@@ -4,6 +4,7 @@
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
+    "prestart": "pnpm --filter @translator/shared-types build && pnpm --filter @translator/shared-socket-contracts build",
     "start": "expo start",
     "dev": "expo start",
     "build": "tsc --noEmit",

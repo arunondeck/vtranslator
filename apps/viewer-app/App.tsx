@@ -22,18 +22,29 @@ export default function App() {
   const selectedRef = useRef<SupportedLanguage>('en');
   const [selected, setSelected] = useState<SupportedLanguage>('en');
   const [transcripts, setTranscripts] = useState<TranscriptMap>({ ...EMPTY_TRANSCRIPTS });
+  const [connected, setConnected] = useState(false);
+  const [sessionId, setSessionId] = useState<string>();
   const [status, setStatus] = useState('Connecting…');
 
   useEffect(() => {
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(backendUrl);
     socketRef.current = socket;
     socket.on('connect', () => {
-      setStatus('Live');
+      setConnected(true);
+      setStatus('Joining…');
       socket.emit(SOCKET_EVENTS.VIEWER_JOIN, { language: selectedRef.current });
     });
-    socket.on('disconnect', () => setStatus('Disconnected'));
-    socket.on(SOCKET_EVENTS.TRANSCRIPT_ALL, ({ transcripts: next }) => setTranscripts(next));
+    socket.on('disconnect', () => {
+      setConnected(false);
+      setStatus('Disconnected');
+    });
+    socket.on(SOCKET_EVENTS.TRANSCRIPT_ALL, ({ sessionId: joinedSessionId, transcripts: next }) => {
+      setSessionId(joinedSessionId);
+      setTranscripts(next);
+      setStatus('Live');
+    });
     socket.on(SOCKET_EVENTS.TRANSCRIPT_UPDATE, (update) => {
+      setSessionId(update.sessionId);
       setTranscripts((current) => ({ ...current, [update.language]: update.text }));
     });
     socket.on(SOCKET_EVENTS.VIEWER_ERROR, ({ message }) => setStatus(message));
@@ -71,6 +82,14 @@ export default function App() {
             </Text>
           </Pressable>
         ))}
+      </View>
+      <View style={styles.sessionDetails}>
+        <Text style={styles.sessionText}>
+          Socket: {connected ? 'connected' : 'disconnected'}
+        </Text>
+        <Text style={styles.sessionText}>
+          {sessionId ? `Session ID: ${sessionId}` : 'Session ID: waiting'}
+        </Text>
       </View>
       <ScrollView contentContainerStyle={styles.transcriptCard}>
         <Text style={styles.transcript}>
@@ -111,6 +130,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  sessionDetails: { paddingHorizontal: 24, paddingBottom: 14, gap: 3 },
+  sessionText: { color: '#718078', fontSize: 12 },
   languageButton: {
     borderWidth: 1,
     borderColor: '#CDD7D1',
