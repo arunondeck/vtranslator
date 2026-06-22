@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Translator Live Wall</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Live multilingual subtitles</p>
+          <h1 data-site-name>Translator Live Wall</h1>
+          <p class="tagline">See every configured translation update in real time as the speaker records audio.</p>
+        </div>
+        <div class="brand-card" aria-label="Site branding">
+          <span class="brand-name" data-site-name>Translator Live Wall</span>
+          <span class="brand-version">v<span data-site-version>0.1.0</span></span>
+        </div>
+      </header>
+
+      <section class="status-grid" aria-label="Connection and session status">
+        <div class="status-card"><span>Connection</span><strong id="connection">connecting</strong></div>
+        <div class="status-card"><span>Session</span><strong id="session">Waiting for speaker</strong></div>
+        <div class="status-card"><span>Sequence</span><strong id="sequence">0</strong></div>
+        <div class="status-card"><span>Last update</span><strong id="updated">Waiting for speech...</strong></div>
+      </section>
+
+      <div class="error-banner" id="error" role="alert" hidden></div>
+      <section class="subtitle-grid" id="subtitles" aria-label="Translated subtitles"></section>
+    </main>
+    <script src="./env.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
