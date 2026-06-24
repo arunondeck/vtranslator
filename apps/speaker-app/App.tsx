@@ -39,10 +39,10 @@ const RECORDING_LABELS: Record<RecordingState, string> = {
 };
 
 export default function App() {
-  const socketRef = useRef<SpeakerSocket>();
-  const recorderRef = useRef<SegmentedAudioRecorder>();
+  const socketRef = useRef<SpeakerSocket | null>(null);
+  const recorderRef = useRef<SegmentedAudioRecorder | null>(null);
   const mountedRef = useRef(true);
-  const sessionIdRef = useRef<string>();
+  const sessionIdRef = useRef<string | undefined>(undefined);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
   const [sessionId, setSessionId] = useState<string>();

@@ -2,7 +2,7 @@
   "name": "viewer-app",
   "version": "0.0.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "dev": "expo start",
@@ -11,15 +11,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@babel/runtime": "^7.29.7",
     "@translator/shared-socket-contracts": "workspace:*",
     "@translator/shared-types": "workspace:*",
-    "expo": "~52.0.46",
-    "expo-status-bar": "~2.0.1",
-    "react": "18.3.1",
-    "react-native": "0.76.9",
+    "expo": "~53.0.27",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-native": "0.79.6",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "@types/react": "~18.3.12"
+    "@types/node": "^22.13.10",
+    "@types/react": "~19.0.14"
   }
 }

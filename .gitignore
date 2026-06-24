@@ -2,6 +2,8 @@ node_modules/
 dist/
 .turbo/
 .expo/
+apps/*/android/
+apps/*/ios/
 .env
 *.log
 coverage/

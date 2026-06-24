@@ -3,6 +3,7 @@
   "tasks": {
     "dev": {
       "cache": false,
+      "dependsOn": ["^build"],
       "persistent": true
     },
     "build": {
