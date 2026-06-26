@@ -1,0 +1,3 @@
+window.TRANSLATOR_WEB_SPEAKER_CONFIG = {
+  BACKEND_SOCKET_URL: 'http://localhost:4000',
+};

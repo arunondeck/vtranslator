@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Translator Web Speaker</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="backend-status" aria-live="polite" aria-label="Backend health">
+        <div class="backend-status-copy">
+          <span class="backend-status-label">Backend</span>
+          <strong id="backend-health">Checking...</strong>
+          <p class="backend-status-detail" id="backend-health-detail" hidden></p>
+        </div>
+        <span class="backend-status-dot" id="backend-health-dot" aria-hidden="true"></span>
+      </section>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Browser microphone</p>
+          <h1>Translator Web Speaker</h1>
+          <p class="tagline">
+            Stream live speech from your browser to the backend — no native app required.
+          </p>
+        </div>
+      </header>
+
+      <section class="status-grid" aria-label="Connection and session status">
+        <div class="status-card"><span>Connection</span><strong id="connection">connecting</strong></div>
+        <div class="status-card"><span>Recording</span><strong id="recording">Idle</strong></div>
+        <div class="status-card"><span>Session</span><strong id="session">Not started</strong></div>
+      </section>
+
+      <div class="error-banner" id="error" role="alert" hidden></div>
+
+      <div class="controls">
+        <button type="button" id="main-action" class="main-button" disabled>Start Talking</button>
+        <p class="recording-status" id="status-text" aria-live="polite">Idle</p>
+      </div>
+
+      <p class="backend-text">Backend: <span id="backend-url"></span></p>
+    </main>
+    <script src="./env.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

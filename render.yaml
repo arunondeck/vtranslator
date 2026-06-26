@@ -1,0 +1,65 @@
+# Render Blueprint — deploy only realtime-backend + web-viewer from this monorepo.
+# Connect the repo in Render → New → Blueprint, or add services manually with the same settings.
+#
+# After the first deploy, set SARVAM_API_KEY in the backend service Environment tab
+# (mark as Secret). Other values below are wired automatically or have safe defaults.
+
+services:
+  - type: web
+    name: realtime-backend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: >-
+      pnpm install --frozen-lockfile
+      && pnpm turbo build --filter=realtime-backend
+    startCommand: pnpm --filter realtime-backend start
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - services/realtime-backend/**
+        - packages/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - turbo.json
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: HOST
+        value: 0.0.0.0
+      - key: USE_MOCK_TRANSCRIPTION
+        value: "false"
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: web-viewer
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: web-viewer
+    runtime: static
+    buildCommand: >-
+      pnpm install --frozen-lockfile
+      && pnpm --filter web-viewer build
+    staticPublishPath: apps/web-viewer/dist
+    buildFilter:
+      paths:
+        - apps/web-viewer/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_BACKEND_SOCKET_URL
+        fromService:
+          type: web
+          name: realtime-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: VITE_SITE_NAME
+        value: Translator
+      - key: VITE_SITE_VERSION
+        value: 0.1.0
