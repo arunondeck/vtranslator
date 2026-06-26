@@ -8,17 +8,19 @@
     "dev": "expo start",
     "build": "tsc --noEmit",
     "lint": "eslint App.tsx src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.7",
     "@translator/shared-socket-contracts": "workspace:*",
     "expo": "~53.0.27",
-    "expo-av": "~15.1.7",
-    "expo-file-system": "~18.1.11",
+    "expo-dev-client": "^5.2.4",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
     "react-native": "0.79.6",
+    "react-native-live-audio-stream": "^1.1.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {

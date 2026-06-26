@@ -14,7 +14,7 @@ import {
   type SpeakerSessionCreatedPayload,
 } from '@translator/shared-socket-contracts';
 
-import { SegmentedAudioRecorder } from './src/audio/recorder';
+import { PcmStreamer } from './src/audio/pcm-streamer';
 import { StatusPill } from './src/components/StatusPill';
 import { BACKEND_SOCKET_URL } from './src/config';
 import {
@@ -40,7 +40,7 @@ const RECORDING_LABELS: Record<RecordingState, string> = {
 
 export default function App() {
   const socketRef = useRef<SpeakerSocket | null>(null);
-  const recorderRef = useRef<SegmentedAudioRecorder | null>(null);
+  const streamerRef = useRef<PcmStreamer | null>(null);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | undefined>(undefined);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
@@ -49,7 +49,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>();
 
   const stopRecording = useCallback(async (emitStop: boolean) => {
-    if (!recorderRef.current?.isActive) {
+    if (!streamerRef.current?.isActive) {
       const activeSessionId = sessionIdRef.current;
       if (emitStop && activeSessionId && socketRef.current?.connected) {
         socketRef.current.emit(SOCKET_EVENTS.SPEAKER_STOP, { sessionId: activeSessionId });
@@ -61,7 +61,7 @@ export default function App() {
     setRecordingState('stopping');
 
     try {
-      await recorderRef.current.stop();
+      await streamerRef.current.stop();
     } catch {
       if (mountedRef.current) {
         setErrorMessage('Recording failed while stopping.');
@@ -88,7 +88,7 @@ export default function App() {
     const handleConnect = () => {
       setConnectionState('connected');
       setErrorMessage(undefined);
-      if (!recorderRef.current?.isActive) {
+      if (!streamerRef.current?.isActive) {
         setRecordingState('idle');
       }
     };
@@ -108,21 +108,32 @@ export default function App() {
       setSessionId(newSessionId);
       setErrorMessage(undefined);
 
-      const recorder = recorderRef.current;
-      if (!recorder) {
+      const streamer = streamerRef.current;
+      if (!streamer) {
         setErrorMessage('Recording could not be initialized.');
         setRecordingState('error');
         return;
       }
 
-      setRecordingState('recording');
-      void recorder.start().catch(() => {
+      try {
+        setRecordingState('recording');
+        streamer.start((frame) => {
+          const activeSocket = socketRef.current;
+          const activeSessionId = sessionIdRef.current;
+          if (!activeSocket?.connected || !activeSessionId) return;
+          activeSocket.emit(SOCKET_EVENTS.SPEAKER_AUDIO_FRAME, {
+            sessionId: activeSessionId,
+            audio: frame.audio,
+            sequence: frame.sequence,
+          });
+        });
+      } catch {
         setErrorMessage('Recording failed.');
         setRecordingState('error');
         if (socket.connected) {
           socket.emit(SOCKET_EVENTS.SPEAKER_STOP, { sessionId: newSessionId });
         }
-      });
+      }
     };
     const handleSpeakerError = ({ message }: SocketErrorPayload) => {
       setErrorMessage(message || 'Backend error.');
@@ -149,7 +160,7 @@ export default function App() {
       socket.off(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, handleSessionCreated);
       socket.off(SOCKET_EVENTS.SPEAKER_ERROR, handleSpeakerError);
       socket.disconnect();
-      void recorderRef.current?.stop();
+      void streamerRef.current?.stop();
     };
   }, [stopRecording]);
 
@@ -165,40 +176,14 @@ export default function App() {
     setRecordingState('requesting-permission');
 
     try {
-      const hasPermission = await SegmentedAudioRecorder.requestPermission();
+      const hasPermission = await PcmStreamer.requestPermission();
       if (!hasPermission) {
         setErrorMessage('Microphone permission denied.');
         setRecordingState('error');
         return;
       }
 
-      recorderRef.current = new SegmentedAudioRecorder(
-        (audioChunk) => {
-          const activeSocket = socketRef.current;
-          const activeSessionId = sessionIdRef.current;
-
-          if (!activeSocket?.connected || !activeSessionId) {
-            throw new Error('Audio chunk send failed.');
-          }
-
-          activeSocket.emit(SOCKET_EVENTS.SPEAKER_AUDIO_CHUNK, {
-            sessionId: activeSessionId,
-            ...audioChunk,
-          });
-        },
-        (message) => {
-          if (mountedRef.current) {
-            setErrorMessage(message);
-            setRecordingState('error');
-          }
-          const activeSessionId = sessionIdRef.current;
-          if (activeSessionId && socketRef.current?.connected) {
-            socketRef.current.emit(SOCKET_EVENTS.SPEAKER_STOP, {
-              sessionId: activeSessionId,
-            });
-          }
-        },
-      );
+      streamerRef.current = new PcmStreamer();
 
       sessionIdRef.current = undefined;
       setSessionId(undefined);

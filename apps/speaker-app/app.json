@@ -5,18 +5,20 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "plugins": [
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Allow Translator Speaker to record speech for live transcription."
-        }
-      ]
+      "expo-dev-client"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow Translator Speaker to record speech for live transcription."
+      }
     },
     "android": {
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.translatorspeaker"
     }
   }
 }
