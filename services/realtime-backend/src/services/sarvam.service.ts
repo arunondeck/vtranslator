@@ -1,20 +1,10 @@
-import type { TranscriptMap } from '@translator/shared-types';
 import { config } from '../config.js';
 
-export type ProcessAudioChunkInput = {
-  sessionId: string;
-  chunk: string;
-  mimeType: string;
-  sequence: number;
+export type TargetTranslations = {
+  ml: string;
+  hi: string;
+  bn: string;
 };
-
-export type ProcessAudioChunkResult = TranscriptMap & {
-  isFinal: boolean;
-};
-
-interface SarvamAdapter {
-  processAudioChunk(input: ProcessAudioChunkInput): Promise<ProcessAudioChunkResult>;
-}
 
 const TARGET_LANGUAGE_CODES = {
   ml: 'ml-IN',
@@ -22,107 +12,73 @@ const TARGET_LANGUAGE_CODES = {
   bn: 'bn-IN',
 } as const;
 
-class MockSarvamAdapter implements SarvamAdapter {
-  async processAudioChunk(
-    input: ProcessAudioChunkInput,
-  ): Promise<ProcessAudioChunkResult> {
-    return {
-      en: `English live transcript sequence ${input.sequence}`,
-      ml: `Malayalam live transcript sequence ${input.sequence}`,
-      hi: `Hindi live transcript sequence ${input.sequence}`,
-      bn: `Bengali live transcript sequence ${input.sequence}`,
-      isFinal: false,
-    };
-  }
-}
+type TargetLanguage = keyof typeof TARGET_LANGUAGE_CODES;
 
-class HttpSarvamAdapter implements SarvamAdapter {
-  constructor(
-    private readonly apiKey: string,
-    private readonly baseUrl: string,
-  ) {}
-
-  async processAudioChunk(
-    input: ProcessAudioChunkInput,
-  ): Promise<ProcessAudioChunkResult> {
-    const audio = Buffer.from(input.chunk, 'base64');
-    const form = new FormData();
-    form.append(
-      'file',
-      new Blob([audio], { type: input.mimeType }),
-      `chunk.${extensionFor(input.mimeType)}`,
-    );
-    form.append('model', 'saaras:v3');
-    form.append('mode', 'translate');
-
-    const transcription = await this.request<{ transcript: string }>(
-      '/speech-to-text',
-      { method: 'POST', body: form },
-    );
-    const en = transcription.transcript.trim();
-    const translations = await Promise.all(
-      Object.entries(TARGET_LANGUAGE_CODES).map(
-        async ([language, targetLanguage]) => {
-          const response = await this.request<{ translated_text: string }>(
-            '/translate',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                input: en,
-                source_language_code: 'en-IN',
-                target_language_code: targetLanguage,
-                model: 'sarvam-translate:v1',
-              }),
-            },
-          );
-          return [language, response.translated_text] as const;
-        },
-      ),
-    );
-
-    return {
-      en,
-      ml: translations.find(([language]) => language === 'ml')?.[1] ?? '',
-      hi: translations.find(([language]) => language === 'hi')?.[1] ?? '',
-      bn: translations.find(([language]) => language === 'bn')?.[1] ?? '',
-      isFinal: false,
-    };
-  }
-
-  private async request<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}${path}`, {
-      ...init,
+async function requestTranslation(
+  english: string,
+  targetLanguage: string,
+): Promise<string> {
+  const response = await fetch(
+    `${config.sarvamApiBaseUrl.replace(/\/$/, '')}/translate`,
+    {
+      method: 'POST',
       headers: {
-        'api-subscription-key': this.apiKey,
-        ...init.headers,
+        'api-subscription-key': config.sarvamApiKey,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        input: english,
+        source_language_code: 'en-IN',
+        target_language_code: targetLanguage,
+        model: 'sarvam-translate:v1',
+      }),
       signal: AbortSignal.timeout(30_000),
-    });
+    },
+  );
 
-    if (!response.ok) {
-      throw new Error(`Sarvam request failed (${response.status})`);
-    }
-    return (await response.json()) as T;
+  if (!response.ok) {
+    throw new Error(`Sarvam translate failed (${response.status})`);
   }
+
+  const body = (await response.json()) as { translated_text?: string };
+  return body.translated_text?.trim() ?? '';
 }
 
-const adapter: SarvamAdapter = config.useMockTranscription
-  ? new MockSarvamAdapter()
-  : new HttpSarvamAdapter(config.sarvamApiKey, config.sarvamApiBaseUrl);
+/**
+ * Translates a finalized English utterance into Malayalam, Hindi, and Bengali.
+ * In mock mode (no API key) it returns deterministic placeholder text so the
+ * full socket pipeline can be exercised without network access.
+ */
+export async function translateToTargets(
+  english: string,
+): Promise<TargetTranslations> {
+  const trimmed = english.trim();
+  if (!trimmed) {
+    return { ml: '', hi: '', bn: '' };
+  }
 
-if (config.useMockTranscription) {
-  console.warn('Using mock transcription. Set USE_MOCK_TRANSCRIPTION=false and SARVAM_API_KEY to use Sarvam AI.');
-}
+  if (config.useMockTranscription) {
+    return {
+      ml: `[ml] ${trimmed}`,
+      hi: `[hi] ${trimmed}`,
+      bn: `[bn] ${trimmed}`,
+    };
+  }
 
-export function processAudioChunk(
-  input: ProcessAudioChunkInput,
-): Promise<ProcessAudioChunkResult> {
-  return adapter.processAudioChunk(input);
-}
+  const languages = Object.keys(TARGET_LANGUAGE_CODES) as TargetLanguage[];
+  const entries = await Promise.all(
+    languages.map(
+      async (language) =>
+        [
+          language,
+          await requestTranslation(trimmed, TARGET_LANGUAGE_CODES[language]),
+        ] as const,
+    ),
+  );
 
-function extensionFor(mimeType: string): string {
-  if (mimeType.includes('webm')) return 'webm';
-  if (mimeType.includes('wav')) return 'wav';
-  return 'm4a';
+  const result: TargetTranslations = { ml: '', hi: '', bn: '' };
+  for (const [language, text] of entries) {
+    result[language] = text;
+  }
+  return result;
 }

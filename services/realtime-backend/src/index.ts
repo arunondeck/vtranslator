@@ -30,6 +30,8 @@ app.get('/health', (_request, response) => {
 
 registerSocketHandlers(io);
 
-httpServer.listen(config.port, () => {
-  console.log(`Realtime backend listening on http://localhost:${config.port}`);
+httpServer.listen(config.port, config.host, () => {
+  console.log(
+    `Realtime backend listening on http://${config.host}:${config.port} (host alias for Android emulator: http://10.0.2.2:${config.port})`,
+  );
 });

@@ -4,7 +4,7 @@ import {
   SOCKET_EVENTS,
   type ClientToServerEvents,
   type ServerToClientEvents,
-  type SpeakerAudioChunkPayload,
+  type SpeakerAudioFramePayload,
   type SocketErrorPayload,
 } from '@translator/shared-socket-contracts';
 import {
@@ -14,8 +14,13 @@ import {
 import {
   sessionStore,
   type ActiveSession,
+  type StoredSession,
 } from './sessions/session-store.js';
-import { processAudioChunk } from './services/sarvam.service.js';
+import {
+  createTranslateStream,
+  type TranslateStreamCallbacks,
+} from './services/sarvam-stream.js';
+import { translateToTargets } from './services/sarvam.service.js';
 
 export type SocketData = {
   viewerSessionId?: string;
@@ -35,20 +40,21 @@ type RealtimeSocket = Socket<
   SocketData
 >;
 
+const TARGET_LANGUAGES: SupportedLanguage[] = ['ml', 'hi', 'bn'];
+// Grace period after an explicit stop so Sarvam can return the final flushed
+// utterance before we tear the upstream connection down.
+const STOP_GRACE_MS = 1_200;
+
 export function registerSocketHandlers(io: RealtimeServer): void {
   io.on('connection', (socket) => {
     socket.on(SOCKET_EVENTS.SPEAKER_START, (payload) => {
-      const session = sessionStore.create(socket.id, payload?.sessionId);
-      void socket.join(roomFor(session.sessionId));
-      socket.emit(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, {
-        sessionId: session.sessionId,
-      });
+      void startSpeakerSession(io, socket, payload?.sessionId);
     });
 
-    socket.on(SOCKET_EVENTS.SPEAKER_AUDIO_CHUNK, (payload) => {
-      const validationError = validateAudioChunk(payload);
+    socket.on(SOCKET_EVENTS.SPEAKER_AUDIO_FRAME, (payload) => {
+      const validationError = validateAudioFrame(payload);
       if (validationError) {
-        emitSpeakerError(socket, validationError, 'INVALID_CHUNK');
+        emitSpeakerError(socket, validationError, 'INVALID_FRAME');
         return;
       }
 
@@ -62,28 +68,40 @@ export function registerSocketHandlers(io: RealtimeServer): void {
         return;
       }
 
-      sessionStore.enqueue(session, async () => {
-        try {
-          await handleAudioChunk(io, session, payload);
-        } catch (error) {
-          console.error('Audio processing failed', error);
-          emitSpeakerError(
-            socket,
-            error instanceof Error ? error.message : 'Audio processing failed.',
-            'PROCESSING_FAILED',
-          );
-        }
-      });
+      if (!session.stream) {
+        emitSpeakerError(
+          socket,
+          'Transcription stream is not ready yet.',
+          'STREAM_NOT_READY',
+        );
+        return;
+      }
+
+      session.stream.sendFrame(payload.audio);
     });
 
     socket.on(SOCKET_EVENTS.SPEAKER_STOP, (payload) => {
-      if (!payload?.sessionId || !sessionStore.stop(payload.sessionId, socket.id)) {
+      const session = payload?.sessionId
+        ? sessionStore.getActive(payload.sessionId)
+        : undefined;
+
+      if (!session || session.speakerSocketId !== socket.id) {
         emitSpeakerError(
           socket,
           'Active session not found for this speaker.',
           'SESSION_NOT_FOUND',
         );
+        return;
       }
+
+      try {
+        session.stream?.flush();
+      } catch {
+        // ignore flush failures
+      }
+      setTimeout(() => {
+        sessionStore.stop(session.sessionId, socket.id);
+      }, STOP_GRACE_MS);
     });
 
     socket.on(SOCKET_EVENTS.VIEWER_JOIN, (payload) => {
@@ -135,24 +153,100 @@ export function registerSocketHandlers(io: RealtimeServer): void {
         updatedAt: new Date().toISOString(),
       });
     });
+
+    socket.on('disconnect', () => {
+      sessionStore.endBySpeaker(socket.id);
+    });
   });
 }
 
-async function handleAudioChunk(
+async function startSpeakerSession(
   io: RealtimeServer,
-  session: ActiveSession,
-  payload: SpeakerAudioChunkPayload,
+  socket: RealtimeSocket,
+  requestedSessionId: string | undefined,
 ): Promise<void> {
-  const result = await processAudioChunk(payload);
-  session.transcripts = {
-    en: result.en,
-    ml: result.ml,
-    hi: result.hi,
-    bn: result.bn,
-  };
-  session.latestSequence = payload.sequence;
-  const updatedAt = new Date().toISOString();
+  const session = sessionStore.create(socket.id, requestedSessionId);
+  await socket.join(roomFor(session.sessionId));
+
+  try {
+    const stream = await createTranslateStream(
+      buildStreamCallbacks(io, socket, session),
+    );
+    sessionStore.attachStream(session, stream);
+  } catch (error) {
+    sessionStore.endSession(session);
+    emitSpeakerError(
+      socket,
+      error instanceof Error ? error.message : 'Failed to start transcription.',
+      'STREAM_INIT_FAILED',
+    );
+    return;
+  }
+
+  socket.emit(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, {
+    sessionId: session.sessionId,
+  });
+}
+
+function buildStreamCallbacks(
+  io: RealtimeServer,
+  socket: RealtimeSocket,
+  session: StoredSession,
+): TranslateStreamCallbacks {
   const room = roomFor(session.sessionId);
+  return {
+    onSpeechStart: () => {
+      io.to(room).emit(SOCKET_EVENTS.SPEAKER_VAD, {
+        sessionId: session.sessionId,
+        speaking: true,
+      });
+    },
+    onSpeechEnd: () => {
+      io.to(room).emit(SOCKET_EVENTS.SPEAKER_VAD, {
+        sessionId: session.sessionId,
+        speaking: false,
+      });
+    },
+    onTranslation: (english) => {
+      void handleFinalUtterance(io, session, english).catch((error: unknown) => {
+        emitSpeakerError(
+          socket,
+          error instanceof Error ? error.message : 'Translation failed.',
+          'TRANSLATION_FAILED',
+        );
+      });
+    },
+    onError: (message) => {
+      emitSpeakerError(socket, message, 'STREAM_ERROR');
+    },
+  };
+}
+
+async function handleFinalUtterance(
+  io: RealtimeServer,
+  session: StoredSession,
+  english: string,
+): Promise<void> {
+  if (session.endedAt) return;
+
+  session.latestSequence += 1;
+  const room = roomFor(session.sessionId);
+
+  const englishText = sessionStore.appendUtterance(session, 'en', english);
+  emitLanguageUpdate(io, session, 'en', englishText, new Date().toISOString());
+
+  const translations = await translateToTargets(english);
+  if (session.endedAt) return;
+
+  const updatedAt = new Date().toISOString();
+  for (const language of TARGET_LANGUAGES) {
+    const text = sessionStore.appendUtterance(
+      session,
+      language,
+      translations[language as 'ml' | 'hi' | 'bn'],
+    );
+    emitLanguageUpdate(io, session, language, text, updatedAt);
+  }
 
   io.to(room).emit(SOCKET_EVENTS.TRANSCRIPT_ALL, {
     sessionId: session.sessionId,
@@ -160,17 +254,23 @@ async function handleAudioChunk(
     sequence: session.latestSequence,
     updatedAt,
   });
+}
 
-  for (const language of SUPPORTED_LANGUAGES) {
-    io.to(room).emit(SOCKET_EVENTS.TRANSCRIPT_UPDATE, {
-      sessionId: session.sessionId,
-      language,
-      text: session.transcripts[language],
-      isFinal: result.isFinal,
-      sequence: session.latestSequence,
-      updatedAt,
-    });
-  }
+function emitLanguageUpdate(
+  io: RealtimeServer,
+  session: ActiveSession,
+  language: SupportedLanguage,
+  text: string,
+  updatedAt: string,
+): void {
+  io.to(roomFor(session.sessionId)).emit(SOCKET_EVENTS.TRANSCRIPT_UPDATE, {
+    sessionId: session.sessionId,
+    language,
+    text,
+    isFinal: true,
+    sequence: session.latestSequence,
+    updatedAt,
+  });
 }
 
 function joinViewer(
@@ -192,27 +292,22 @@ function joinViewer(
   });
 }
 
-function validateAudioChunk(payload: unknown): string | undefined {
+function validateAudioFrame(payload: unknown): string | undefined {
   if (!payload || typeof payload !== 'object') return 'Missing audio payload.';
-  const candidate = payload as Partial<SpeakerAudioChunkPayload>;
+  const candidate = payload as Partial<SpeakerAudioFramePayload>;
   if (
     typeof candidate.sessionId !== 'string' ||
-    typeof candidate.chunk !== 'string' ||
-    typeof candidate.mimeType !== 'string'
+    typeof candidate.audio !== 'string'
   ) {
     return 'Audio fields must be strings.';
   }
-  if (
-    !candidate.sessionId.trim() ||
-    !candidate.chunk.trim() ||
-    !candidate.mimeType.trim()
-  ) {
+  if (!candidate.sessionId.trim() || !candidate.audio.trim()) {
     return 'Missing audio fields.';
   }
   if (!Number.isInteger(candidate.sequence) || Number(candidate.sequence) < 1) {
     return 'Sequence must be a positive integer.';
   }
-  if (!isValidBase64(candidate.chunk)) return 'Chunk must be valid base64.';
+  if (!isValidBase64(candidate.audio)) return 'Audio must be valid base64.';
   return undefined;
 }
 
