@@ -3,32 +3,58 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Translator Live Wall</title>
+    <title>Translator</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page-shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">Live multilingual subtitles</p>
-          <h1 data-site-name>Translator Live Wall</h1>
-          <p class="tagline">See every configured translation update in real time as the speaker records audio.</p>
+          <p class="eyebrow">Speak and translate</p>
+          <h1 data-site-name>Translator</h1>
+          <p class="tagline">Use the microphone to stream speech, then read the live translation in your chosen language.</p>
         </div>
         <div class="brand-card" aria-label="Site branding">
-          <span class="brand-name" data-site-name>Translator Live Wall</span>
+          <span class="brand-name" data-site-name>Translator</span>
           <span class="brand-version">v<span data-site-version>0.1.0</span></span>
         </div>
       </header>
 
-      <section class="status-grid" aria-label="Connection and session status">
-        <div class="status-card"><span>Connection</span><strong id="connection">connecting</strong></div>
-        <div class="status-card"><span>Session</span><strong id="session">Waiting for speaker</strong></div>
-        <div class="status-card"><span>Sequence</span><strong id="sequence">0</strong></div>
-        <div class="status-card"><span>Last update</span><strong id="updated">Waiting for speech...</strong></div>
+      <section class="speaker-panel" aria-label="Microphone controls">
+        <div class="status-grid status-grid--compact">
+          <div class="status-card"><span>Connection</span><strong id="connection">connecting</strong></div>
+          <div class="status-card"><span>Recording</span><strong id="recording">Idle</strong></div>
+          <div class="status-card"><span>Speaker</span><strong id="speaking" class="mic-idle">Idle<span class="mic-dot" aria-hidden="true"></span></strong></div>
+        </div>
+
+        <div class="error-banner" id="speaker-error" role="alert" hidden></div>
+
+        <div class="mic-controls">
+          <button type="button" id="main-action" class="main-button" disabled aria-label="Start or stop talking">Start Talking</button>
+          <p class="recording-status" id="status-text" aria-live="polite">Idle</p>
+        </div>
       </section>
 
-      <div class="error-banner" id="error" role="alert" hidden></div>
-      <section class="subtitle-grid" id="subtitles" aria-label="Translated subtitles"></section>
+      <section class="viewer-panel" aria-label="Translation viewer">
+        <div class="panel-header">
+          <h2>Live translation</h2>
+          <p class="panel-subtitle">Choose a language to display the transcript.</p>
+        </div>
+
+        <div class="language-grid" id="language-options" role="radiogroup" aria-label="Translation language"></div>
+
+        <div class="error-banner" id="viewer-error" role="alert" hidden></div>
+
+        <article class="transcript-card">
+          <div class="transcript-meta">
+            <span id="selected-language-label">English</span>
+            <span class="meta-pill" id="sequence">Seq 0</span>
+          </div>
+          <p class="transcript-text" id="transcript">Waiting for translated subtitles...</p>
+          <p class="session-line">Session: <span id="session">Waiting for speaker</span></p>
+          <p class="session-line">Last update: <span id="updated">Waiting for speech...</span></p>
+        </article>
+      </section>
     </main>
     <script src="./env.js"></script>
     <script src="./app.js"></script>

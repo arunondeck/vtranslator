@@ -6,4 +6,4 @@ await Promise.all([
   access(new URL('../public/styles.css', import.meta.url)),
   access(new URL('../public/env.js', import.meta.url)),
 ]);
-console.log('Web viewer static files are present.');
+console.log('Translator web app static files are present.');

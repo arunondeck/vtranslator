@@ -23,16 +23,15 @@ createServer((request, response) => {
   response.setHeader('Content-Type', mimeTypes[extname(finalPath)] ?? 'application/octet-stream');
   createReadStream(finalPath).pipe(response);
 }).listen(port, '0.0.0.0', () => {
-  console.log(`Web viewer serving ${publicDir} at http://localhost:${port}`);
+  console.log(`Translator web app serving ${publicDir} at http://localhost:${port}`);
 });
 
 function renderEnv() {
   const fileEnv = readDotEnv(join(publicDir, '..', '.env'));
   return `window.TRANSLATOR_WEB_CONFIG = ${JSON.stringify({
     BACKEND_SOCKET_URL: process.env.VITE_BACKEND_SOCKET_URL ?? fileEnv.VITE_BACKEND_SOCKET_URL ?? 'http://localhost:4000',
-    SITE_NAME: process.env.VITE_SITE_NAME ?? fileEnv.VITE_SITE_NAME ?? 'Translator Live Wall',
+    SITE_NAME: process.env.VITE_SITE_NAME ?? fileEnv.VITE_SITE_NAME ?? 'Translator',
     SITE_VERSION: process.env.VITE_SITE_VERSION ?? fileEnv.VITE_SITE_VERSION ?? '0.1.0',
-    DISPLAY_LANGUAGES: process.env.VITE_DISPLAY_LANGUAGES ?? fileEnv.VITE_DISPLAY_LANGUAGES ?? 'en,ml,hi,bn',
   }, null, 2)};\n`;
 }
 
