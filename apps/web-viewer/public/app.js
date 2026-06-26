@@ -24,12 +24,21 @@ const SOCKET_EVENTS = {
 const AUDIO_SAMPLE_RATE = 16_000;
 const FRAME_BYTES = 4096;
 
-const config = {
-  BACKEND_SOCKET_URL: 'http://localhost:4000',
-  SITE_NAME: 'Translator',
-  SITE_VERSION: '0.1.0',
-  ...(window.TRANSLATOR_WEB_CONFIG ?? {}),
-};
+const config = loadConfig();
+
+function loadConfig() {
+  const runtime = window.TRANSLATOR_WEB_CONFIG;
+  if (!runtime?.BACKEND_SOCKET_URL) {
+    throw new Error(
+      'Missing BACKEND_SOCKET_URL. Copy apps/web-viewer/.env.example to .env and run via pnpm dev, or deploy with VITE_BACKEND_SOCKET_URL set.',
+    );
+  }
+  return {
+    BACKEND_SOCKET_URL: runtime.BACKEND_SOCKET_URL,
+    SITE_NAME: runtime.SITE_NAME ?? 'Translator',
+    SITE_VERSION: runtime.SITE_VERSION ?? '0.1.0',
+  };
+}
 
 const RECORDING_LABELS = {
   idle: 'Idle',
