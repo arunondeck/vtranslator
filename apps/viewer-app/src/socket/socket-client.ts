@@ -11,5 +11,6 @@ export function createSocketClient(): ViewerSocket {
   return io(BACKEND_SOCKET_URL, {
     autoConnect: false,
     reconnection: true,
+    transports: ['websocket'],
   });
 }
