@@ -112,6 +112,9 @@ importers:
 
   services/realtime-backend:
     dependencies:
+      '@soniox/node':
+        specifier: ^2.0.3
+        version: 2.2.0
       '@translator/shared-socket-contracts':
         specifier: workspace:*
         version: link:../../packages/shared-socket-contracts
@@ -1073,6 +1076,9 @@ packages:
 
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
+
+  '@soniox/node@2.2.0':
+    resolution: {integrity: sha512-5gYrhlbINfNs9CcNmHETEhNBKaniP6RgdYuZYOXyRx/tnjzZ/M4kKGMXatdUGquji0biO7IfOcmr9fZqJYDB2Q==}
 
   '@turbo/darwin-64@2.9.18':
     resolution: {integrity: sha512-9f27peFu16ur8c0v9nUFUEyBnbKuuFsUTjHFWfmwGfzySBXbHwzU44QhZon6Mznz0cHsIr3984NQj/bVrnGSRw==}
@@ -4628,6 +4634,8 @@ snapshots:
       '@sinonjs/commons': 3.0.1
 
   '@socket.io/component-emitter@3.1.2': {}
+
+  '@soniox/node@2.2.0': {}
 
   '@turbo/darwin-64@2.9.18':
     optional: true

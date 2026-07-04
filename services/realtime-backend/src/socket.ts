@@ -6,6 +6,7 @@ import {
   type ServerToClientEvents,
   type SpeakerAudioFramePayload,
   type SocketErrorPayload,
+  type TranslationService,
 } from '@translator/shared-socket-contracts';
 import {
   SUPPORTED_LANGUAGES,
@@ -21,6 +22,7 @@ import {
   type TranslateStreamCallbacks,
 } from './services/sarvam-stream.js';
 import { translateToTargets } from './services/sarvam.service.js';
+import { createSonioxTranslateStream } from './services/soniox.service.js';
 
 export type SocketData = {
   viewerSessionId?: string;
@@ -48,7 +50,7 @@ const STOP_GRACE_MS = 1_200;
 export function registerSocketHandlers(io: RealtimeServer): void {
   io.on('connection', (socket) => {
     socket.on(SOCKET_EVENTS.SPEAKER_START, (payload) => {
-      void startSpeakerSession(io, socket, payload?.sessionId);
+      void startSpeakerSession(io, socket, payload?.sessionId, payload?.service);
     });
 
     socket.on(SOCKET_EVENTS.SPEAKER_AUDIO_FRAME, (payload) => {
@@ -164,14 +166,18 @@ async function startSpeakerSession(
   io: RealtimeServer,
   socket: RealtimeSocket,
   requestedSessionId: string | undefined,
+  requestedService: TranslationService | undefined,
 ): Promise<void> {
   const session = sessionStore.create(socket.id, requestedSessionId);
   await socket.join(roomFor(session.sessionId));
+  const service = readTranslationService(requestedService);
 
   try {
-    const stream = await createTranslateStream(
-      buildStreamCallbacks(io, socket, session),
-    );
+    const callbacks = buildStreamCallbacks(io, socket, session);
+    const stream =
+      service === 'soniox'
+        ? await createSonioxTranslateStream(callbacks)
+        : await createTranslateStream(callbacks);
     sessionStore.attachStream(session, stream);
   } catch (error) {
     sessionStore.endSession(session);
@@ -186,6 +192,12 @@ async function startSpeakerSession(
   socket.emit(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, {
     sessionId: session.sessionId,
   });
+}
+
+function readTranslationService(
+  value: TranslationService | undefined,
+): TranslationService {
+  return value === 'sarvam' ? 'sarvam' : 'soniox';
 }
 
 function buildStreamCallbacks(

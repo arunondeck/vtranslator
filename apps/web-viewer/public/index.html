@@ -30,6 +30,13 @@
         <div class="error-banner" id="speaker-error" role="alert" hidden></div>
 
         <div class="mic-controls">
+          <label class="service-selector">
+            <span>Translation service</span>
+            <select id="translation-service" aria-label="Translation service">
+              <option value="soniox" selected>Sonic</option>
+              <option value="sarvam">Sarvam</option>
+            </select>
+          </label>
           <button type="button" id="main-action" class="main-button" disabled aria-label="Start or stop talking">Start Talking</button>
           <p class="recording-status" id="status-text" aria-live="polite">Idle</p>
         </div>

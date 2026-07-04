@@ -6,6 +6,7 @@ const LANGUAGE_LABELS = {
 };
 const SUPPORTED_LANGUAGES = Object.keys(LANGUAGE_LABELS);
 const EMPTY_TRANSCRIPTS = { en: '', ml: '', hi: '', bn: '' };
+const TRANSLATION_SERVICES = ['soniox', 'sarvam'];
 
 const SOCKET_EVENTS = {
   SPEAKER_START: 'speaker:start',
@@ -54,6 +55,8 @@ const state = {
   speakerSessionId: undefined,
   viewerJoined: false,
   selectedLanguage: 'en',
+  selectedService: 'soniox',
+  sonioxConfigured: undefined,
   transcripts: { ...EMPTY_TRANSCRIPTS },
   sequence: 0,
   speakerError: undefined,
@@ -66,6 +69,7 @@ const elements = {
   speaking: document.querySelector('#speaking'),
   speakerError: document.querySelector('#speaker-error'),
   mainAction: document.querySelector('#main-action'),
+  translationService: document.querySelector('#translation-service'),
   statusText: document.querySelector('#status-text'),
   languageOptions: document.querySelector('#language-options'),
   viewerError: document.querySelector('#viewer-error'),
@@ -86,8 +90,12 @@ document.querySelector('[data-site-version]').textContent = config.SITE_VERSION;
 document.title = `${config.SITE_NAME} v${config.SITE_VERSION}`;
 
 renderLanguageOptions();
+elements.translationService.addEventListener('change', () => {
+  selectTranslationService(elements.translationService.value);
+});
 elements.mainAction.addEventListener('click', () => void handleMainAction());
 render();
+void loadSonioxConfig();
 loadSocketIoClient();
 
 function renderLanguageOptions() {
@@ -119,6 +127,29 @@ function selectLanguage(language) {
   } else if (socket?.connected && state.speakerSessionId) {
     joinViewer(state.speakerSessionId);
   }
+}
+
+function selectTranslationService(service) {
+  if (!TRANSLATION_SERVICES.includes(service) || state.recording === 'recording') {
+    elements.translationService.value = state.selectedService;
+    return;
+  }
+
+  state.selectedService = service;
+  state.speakerError = undefined;
+  render();
+}
+
+async function loadSonioxConfig() {
+  try {
+    const response = await fetch(`${config.BACKEND_SOCKET_URL.replace(/\/$/, '')}/soniox/config`);
+    if (!response.ok) throw new Error(`Soniox config failed (${response.status})`);
+    const sonioxConfig = await response.json();
+    state.sonioxConfigured = Boolean(sonioxConfig.configured);
+  } catch {
+    state.sonioxConfigured = false;
+  }
+  render();
 }
 
 function loadSocketIoClient() {
@@ -260,7 +291,9 @@ async function startTalking() {
 
     state.speakerSessionId = undefined;
     state.viewerJoined = false;
-    socket.emit(SOCKET_EVENTS.SPEAKER_START, {});
+    socket.emit(SOCKET_EVENTS.SPEAKER_START, {
+      service: state.selectedService,
+    });
   } catch (error) {
     state.speakerError = error instanceof Error ? error.message : 'Recording failed.';
     state.recording = 'error';
@@ -346,19 +379,29 @@ function render() {
 
   elements.statusText.textContent = RECORDING_LABELS[state.recording] ?? 'Idle';
   elements.statusText.classList.toggle('is-error', state.recording === 'error');
+  elements.translationService.value = state.selectedService;
+  elements.translationService.disabled = isRecording || isBusy;
+
+  if (
+    state.selectedService === 'soniox' &&
+    state.sonioxConfigured === false &&
+    !state.speakerError
+  ) {
+    elements.speakerError.textContent =
+      'Sonic is selected, but the backend Soniox endpoint is not configured.';
+    elements.speakerError.hidden = false;
+  } else if (state.speakerError) {
+    elements.speakerError.textContent = state.speakerError;
+    elements.speakerError.hidden = false;
+  } else {
+    elements.speakerError.hidden = true;
+  }
 
   for (const button of elements.languageOptions.querySelectorAll('.language-option')) {
     const language = button.dataset.language;
     const selected = language === state.selectedLanguage;
     button.classList.toggle('is-selected', selected);
     button.setAttribute('aria-checked', String(selected));
-  }
-
-  if (state.speakerError) {
-    elements.speakerError.textContent = state.speakerError;
-    elements.speakerError.hidden = false;
-  } else {
-    elements.speakerError.hidden = true;
   }
 
   if (state.viewerError) {
