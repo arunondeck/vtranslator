@@ -1,6 +1,6 @@
 # Translator MVP
 
-Realtime multilingual transcription demo using Socket.IO, Sarvam AI, and
+Realtime multilingual transcription demo using Socket.IO, Sarvam AI, optional Soniox AI REST endpoints, and
 optional Expo native apps.
 
 Audio is streamed as 16 kHz PCM to the backend, which opens one Sarvam
@@ -49,7 +49,7 @@ Confirm the backend is up: `curl http://localhost:4000/health` should return
 
 | Path | Role |
 | --- | --- |
-| `services/realtime-backend` | Socket.IO server; bridges audio to Sarvam |
+| `services/realtime-backend` | Socket.IO server; bridges live audio to Sarvam and exposes Soniox REST endpoints |
 | `apps/web-viewer` | Unified browser page (mic + language selectors) |
 | `apps/speaker-app` | Native Expo app that streams microphone PCM |
 | `apps/viewer-app` | Native Expo app that shows one selected language |
@@ -189,7 +189,8 @@ pnpm --filter speaker-app exec expo start --dev-client
 | Live | `USE_MOCK_TRANSCRIPTION=false` and `SARVAM_API_KEY` | Streams to Sarvam; text appears ~0.5s after each pause |
 
 Tune streaming and VAD via `SARVAM_*` and `TRANSCRIPT_WINDOW_CHARS` in
-`services/realtime-backend/.env.example`.
+`services/realtime-backend/.env.example`. Soniox REST experiments use `SONIOX_*`
+variables in the same file; see `docs/04-soniox-api.md` for endpoint details.
 
 There is no unit-test runner yet — use `pnpm lint`, `pnpm typecheck`, and a
 manual end-to-end pass to verify changes.
@@ -198,5 +199,7 @@ manual end-to-end pass to verify changes.
 
 - Health check: `GET http://localhost:4000/health`
 - Socket server: `http://localhost:4000`
+- Soniox status/config: `GET http://localhost:4000/soniox/status` and `GET http://localhost:4000/soniox/config`
+- Soniox STT: `POST http://localhost:4000/soniox/stt/transcribe-demo` or `POST http://localhost:4000/soniox/stt/transcribe-url`
 
 Sessions and transcripts are held in memory only.
