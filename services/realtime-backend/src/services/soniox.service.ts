@@ -1,5 +1,10 @@
 import { SonioxNodeClient } from '@soniox/node';
+import { Buffer } from 'node:buffer';
 import { config } from '../config.js';
+import type {
+  TranslateStream,
+  TranslateStreamCallbacks,
+} from './sarvam-stream.js';
 
 export type SonioxRuntimeConfig = {
   api_key?: string;
@@ -49,6 +54,86 @@ type SonioxClient = {
     stt(options: { model: string }): SonioxSession;
   };
 };
+
+class SonioxTranslateStream implements TranslateStream {
+  private readonly chunks: Uint8Array[] = [];
+  private readonly waiters: Array<() => void> = [];
+  private closed = false;
+  private session?: SonioxSession;
+
+  constructor(private readonly callbacks: TranslateStreamCallbacks) {}
+
+  async connect(): Promise<void> {
+    if (!config.sonioxApiKey) {
+      throw new Error('SONIOX_API_KEY is required to use Soniox transcription.');
+    }
+
+    const client = new (SonioxNodeClient as unknown as {
+      new (options?: SonioxRuntimeConfig): SonioxClient;
+    })(getSonioxRuntimeConfig());
+    this.session = client.realtime.stt({ model: config.sonioxSttModel });
+    this.session.on('result', (result) => {
+      const text = (result.tokens ?? [])
+        .map((token) => token.text ?? '')
+        .join('')
+        .trim();
+      if (text) {
+        this.callbacks.onTranslation(text);
+      }
+    });
+    this.session.on('error', (error) => {
+      this.callbacks.onError?.(error.message || 'Soniox stream error.');
+    });
+
+    await this.session.connect();
+    void this.session
+      .sendStream(this.readFrames(), {
+        pace_ms: config.sonioxStreamPaceMs,
+        finish: true,
+      })
+      .catch((error: unknown) => {
+        this.callbacks.onError?.(
+          error instanceof Error ? error.message : 'Soniox stream error.',
+        );
+      });
+  }
+
+  sendFrame(frameBase64: string): void {
+    if (this.closed) return;
+    this.callbacks.onSpeechStart?.();
+    this.chunks.push(Buffer.from(frameBase64, 'base64'));
+    this.resolveWaiters();
+  }
+
+  flush(): void {
+    this.callbacks.onSpeechEnd?.();
+  }
+
+  close(): void {
+    this.closed = true;
+    this.resolveWaiters();
+  }
+
+  private async *readFrames(): AsyncIterable<Uint8Array> {
+    while (!this.closed || this.chunks.length > 0) {
+      const chunk = this.chunks.shift();
+      if (chunk) {
+        yield chunk;
+        continue;
+      }
+
+      await new Promise<void>((resolve) => {
+        this.waiters.push(resolve);
+      });
+    }
+  }
+
+  private resolveWaiters(): void {
+    for (const resolve of this.waiters.splice(0)) {
+      resolve();
+    }
+  }
+}
 
 export function getSonioxRuntimeConfig(): SonioxRuntimeConfig {
   return {
@@ -116,6 +201,14 @@ export async function transcribeUrlWithSoniox({
     tokens,
     model,
   };
+}
+
+export async function createSonioxTranslateStream(
+  callbacks: TranslateStreamCallbacks,
+): Promise<TranslateStream> {
+  const stream = new SonioxTranslateStream(callbacks);
+  await stream.connect();
+  return stream;
 }
 
 async function createAudioStreamFromUrl(

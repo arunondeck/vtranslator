@@ -18,7 +18,11 @@ export const SOCKET_EVENTS = {
   TRANSCRIPT_ALL: 'transcript:all',
 } as const;
 
-export type SpeakerStartPayload = { sessionId?: string };
+export type TranslationService = 'soniox' | 'sarvam';
+export type SpeakerStartPayload = {
+  sessionId?: string;
+  service?: TranslationService;
+};
 export type SpeakerAudioFramePayload = {
   sessionId: string;
   audio: string;
