@@ -23,6 +23,13 @@ export const config = {
   maxAudioChunkBytes: 10 * 1024 * 1024,
   sarvamApiKey: process.env.SARVAM_API_KEY?.trim() ?? '',
   sarvamApiBaseUrl: process.env.SARVAM_API_BASE_URL?.trim() || 'https://api.sarvam.ai',
+  sonioxApiKey: process.env.SONIOX_API_KEY?.trim() ?? '',
+  sonioxRegion: process.env.SONIOX_REGION?.trim() ?? '',
+  sonioxBaseDomain: process.env.SONIOX_BASE_DOMAIN?.trim() ?? '',
+  sonioxApiBaseUrl: process.env.SONIOX_API_BASE_URL?.trim() ?? '',
+  sonioxWsUrl: process.env.SONIOX_WS_URL?.trim() ?? '',
+  sonioxTtsApiUrl: process.env.SONIOX_TTS_API_URL?.trim() ?? '',
+  sonioxTtsWsUrl: process.env.SONIOX_TTS_WS_URL?.trim() ?? '',
   useMockTranscription:
     process.env.USE_MOCK_TRANSCRIPTION?.toLowerCase() === 'true' ||
     !process.env.SARVAM_API_KEY?.trim(),
@@ -30,6 +37,8 @@ export const config = {
   sarvamModel: process.env.SARVAM_STREAM_MODEL?.trim() || 'saaras:v3',
   sarvamInputCodec: process.env.SARVAM_INPUT_CODEC?.trim() || 'pcm_s16le',
   sarvamSampleRate: readInt(process.env.SARVAM_SAMPLE_RATE, 16_000),
+  sonioxSttModel: process.env.SONIOX_STT_MODEL?.trim() || 'stt-rt-v5',
+  sonioxStreamPaceMs: readInt(process.env.SONIOX_STREAM_PACE_MS, 60),
   highVadSensitivity: readBool(process.env.SARVAM_HIGH_VAD_SENSITIVITY, true),
   vadSignals: readBool(process.env.SARVAM_VAD_SIGNALS, true),
   // Rolling window of accumulated transcript text kept per language.

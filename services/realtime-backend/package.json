@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@soniox/node": "^2.0.3",
     "@translator/shared-socket-contracts": "workspace:*",
     "@translator/shared-types": "workspace:*",
     "cors": "^2.8.5",

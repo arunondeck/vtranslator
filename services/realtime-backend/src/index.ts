@@ -9,6 +9,7 @@ import type {
 } from '@translator/shared-socket-contracts';
 import { config } from './config.js';
 import { registerSocketHandlers, type SocketData } from './socket.js';
+import { sonioxRouter } from './routes.soniox.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -21,10 +22,21 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, object, Socket
 );
 
 app.use(cors({ origin: config.corsOrigin }));
+app.use(express.json({ limit: '1mb' }));
+app.use('/soniox', sonioxRouter);
+
 app.get('/health', (_request, response) => {
   response.json({
     ok: true,
     service: 'realtime-backend',
+  });
+});
+
+app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
+  const message = error instanceof Error ? error.message : 'Unexpected server error.';
+  response.status(message.includes('required') || message.includes('URL') ? 400 : 500).json({
+    ok: false,
+    error: message,
   });
 });
 
