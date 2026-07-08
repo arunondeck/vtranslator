@@ -23,7 +23,7 @@ export interface TranslateStream {
 const MAX_PENDING_FRAMES = 50;
 
 type StreamingSocket = Awaited<
-  ReturnType<SarvamAIClient['speechToTextTranslateStreaming']['connect']>
+  ReturnType<SarvamAIClient['speechToTextStreaming']['connect']>
 >;
 
 class SarvamTranslateStream implements TranslateStream {
@@ -36,16 +36,21 @@ class SarvamTranslateStream implements TranslateStream {
 
   async open(): Promise<void> {
     const client = new SarvamAIClient({ apiSubscriptionKey: config.sarvamApiKey });
-    const socket = await client.speechToTextTranslateStreaming.connect({
-      model: config.sarvamModel as SarvamAI.SpeechToTextTranslateModel,
+    const connectArgs: Parameters<typeof client.speechToTextStreaming.connect>[0] & {
+      mode: SarvamAI.SpeechToTextStreamingMode;
+    } = {
+      model: config.sarvamModel as never,
+      mode: 'translate' as SarvamAI.SpeechToTextStreamingMode,
+      'language-code': config.sarvamLanguageCode as SarvamAI.SpeechToTextStreamingLanguageCode,
       input_audio_codec:
-        config.sarvamInputCodec as SarvamAI.SpeechToTextTranslateStreamingInputAudioCodec,
+        config.sarvamInputCodec as SarvamAI.SpeechToTextStreamingInputAudioCodec,
       sample_rate: String(config.sarvamSampleRate),
       high_vad_sensitivity: config.highVadSensitivity ? 'true' : 'false',
       vad_signals: config.vadSignals ? 'true' : 'false',
       flush_signal: 'true',
       'Api-Subscription-Key': config.sarvamApiKey,
-    });
+    };
+    const socket = await client.speechToTextStreaming.connect(connectArgs);
 
     this.socket = socket;
 
@@ -103,14 +108,15 @@ class SarvamTranslateStream implements TranslateStream {
   }
 
   private transmit(base64Pcm16: string): void {
-    this.socket?.translate({
+    this.socket?.transcribe({
       audio: base64Pcm16,
+      encoding: config.sarvamInputCodec,
       sample_rate: config.sarvamSampleRate,
     });
   }
 
   private handleMessage(
-    message: SarvamAI.SpeechToTextTranslateStreamingResponse,
+    message: SarvamAI.SpeechToTextStreamingResponse,
   ): void {
     if (message.type === 'events') {
       const signal = (message.data as SarvamAI.EventsData).signal_type;
@@ -121,7 +127,7 @@ class SarvamTranslateStream implements TranslateStream {
 
     if (message.type === 'data') {
       const text = (
-        message.data as SarvamAI.SpeechToTextTranslateTranscriptionData
+        message.data as SarvamAI.SpeechToTextTranscriptionData
       ).transcript?.trim();
       if (text) this.callbacks.onTranslation(text);
       return;

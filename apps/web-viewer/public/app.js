@@ -7,6 +7,7 @@ const LANGUAGE_LABELS = {
 const SUPPORTED_LANGUAGES = Object.keys(LANGUAGE_LABELS);
 const EMPTY_TRANSCRIPTS = { en: '', ml: '', hi: '', bn: '' };
 const TRANSLATION_SERVICES = ['soniox', 'sarvam'];
+const SPOKEN_LANGUAGE_HINTS = ['ml', 'ar'];
 
 const SOCKET_EVENTS = {
   SPEAKER_START: 'speaker:start',
@@ -293,6 +294,7 @@ async function startTalking() {
     state.viewerJoined = false;
     socket.emit(SOCKET_EVENTS.SPEAKER_START, {
       service: state.selectedService,
+      spokenLanguageHints: SPOKEN_LANGUAGE_HINTS,
     });
   } catch (error) {
     state.speakerError = error instanceof Error ? error.message : 'Recording failed.';

@@ -22,6 +22,7 @@ import {
   type TranslateStreamCallbacks,
 } from './services/sarvam-stream.js';
 import { translateToTargets } from './services/sarvam.service.js';
+import { config } from './config.js';
 import { createSonioxTranslateStream } from './services/soniox.service.js';
 
 export type SocketData = {
@@ -50,7 +51,13 @@ const STOP_GRACE_MS = 1_200;
 export function registerSocketHandlers(io: RealtimeServer): void {
   io.on('connection', (socket) => {
     socket.on(SOCKET_EVENTS.SPEAKER_START, (payload) => {
-      void startSpeakerSession(io, socket, payload?.sessionId, payload?.service);
+      void startSpeakerSession(
+        io,
+        socket,
+        payload?.sessionId,
+        payload?.service,
+        payload?.spokenLanguageHints,
+      );
     });
 
     socket.on(SOCKET_EVENTS.SPEAKER_AUDIO_FRAME, (payload) => {
@@ -167,16 +174,18 @@ async function startSpeakerSession(
   socket: RealtimeSocket,
   requestedSessionId: string | undefined,
   requestedService: TranslationService | undefined,
+  requestedLanguageHints: string[] | undefined,
 ): Promise<void> {
   const session = sessionStore.create(socket.id, requestedSessionId);
   await socket.join(roomFor(session.sessionId));
   const service = readTranslationService(requestedService);
+  const languageHints = readLanguageHints(requestedLanguageHints);
 
   try {
     const callbacks = buildStreamCallbacks(io, socket, session);
     const stream =
       service === 'soniox'
-        ? await createSonioxTranslateStream(callbacks)
+        ? await createSonioxTranslateStream(callbacks, languageHints)
         : await createTranslateStream(callbacks);
     sessionStore.attachStream(session, stream);
   } catch (error) {
@@ -192,6 +201,17 @@ async function startSpeakerSession(
   socket.emit(SOCKET_EVENTS.SPEAKER_SESSION_CREATED, {
     sessionId: session.sessionId,
   });
+}
+
+function readLanguageHints(value: string[] | undefined): string[] {
+  if (!Array.isArray(value)) return config.defaultSpokenLanguageHints;
+  return Array.from(
+    new Set(
+      value
+        .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+        .filter(Boolean),
+    ),
+  );
 }
 
 function readTranslationService(
