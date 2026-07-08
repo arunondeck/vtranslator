@@ -22,6 +22,7 @@ export type SonioxTranscribeOptions = {
   url: string;
   model?: string;
   paceMs?: number;
+  languageHints?: string[];
 };
 
 export type SonioxToken = {
@@ -51,8 +52,17 @@ type SonioxSession = {
 
 type SonioxClient = {
   realtime: {
-    stt(options: { model: string }): SonioxSession;
+    stt(options: SonioxSttSessionConfig): SonioxSession;
   };
+};
+
+type SonioxSttSessionConfig = {
+  model: string;
+  audio_format: 'pcm_s16le';
+  sample_rate: number;
+  num_channels: 1;
+  language_hints?: string[];
+  enable_language_identification: true;
 };
 
 class SonioxTranslateStream implements TranslateStream {
@@ -61,7 +71,10 @@ class SonioxTranslateStream implements TranslateStream {
   private closed = false;
   private session?: SonioxSession;
 
-  constructor(private readonly callbacks: TranslateStreamCallbacks) {}
+  constructor(
+    private readonly callbacks: TranslateStreamCallbacks,
+    private readonly languageHints: string[] = config.defaultSpokenLanguageHints,
+  ) {}
 
   async connect(): Promise<void> {
     if (!config.sonioxApiKey) {
@@ -71,7 +84,9 @@ class SonioxTranslateStream implements TranslateStream {
     const client = new (SonioxNodeClient as unknown as {
       new (options?: SonioxRuntimeConfig): SonioxClient;
     })(getSonioxRuntimeConfig());
-    this.session = client.realtime.stt({ model: config.sonioxSttModel });
+    this.session = client.realtime.stt(
+      buildSonioxSttConfig(config.sonioxSttModel, this.languageHints),
+    );
     this.session.on('result', (result) => {
       const text = (result.tokens ?? [])
         .map((token) => token.text ?? '')
@@ -172,6 +187,7 @@ export async function transcribeUrlWithSoniox({
   url,
   model = config.sonioxSttModel,
   paceMs = config.sonioxStreamPaceMs,
+  languageHints = config.defaultSpokenLanguageHints,
 }: SonioxTranscribeOptions): Promise<SonioxTranscription> {
   if (!config.sonioxApiKey) {
     throw new Error('SONIOX_API_KEY is required to use Soniox transcription.');
@@ -181,7 +197,7 @@ export async function transcribeUrlWithSoniox({
   const client = new (SonioxNodeClient as unknown as {
     new (options?: SonioxRuntimeConfig): SonioxClient;
   })(getSonioxRuntimeConfig());
-  const session = client.realtime.stt({ model });
+  const session = client.realtime.stt(buildSonioxSttConfig(model, languageHints));
   const tokens: SonioxToken[] = [];
 
   await new Promise<void>((resolve, reject) => {
@@ -205,8 +221,9 @@ export async function transcribeUrlWithSoniox({
 
 export async function createSonioxTranslateStream(
   callbacks: TranslateStreamCallbacks,
+  languageHints = config.defaultSpokenLanguageHints,
 ): Promise<TranslateStream> {
-  const stream = new SonioxTranslateStream(callbacks);
+  const stream = new SonioxTranslateStream(callbacks, languageHints);
   await stream.connect();
   return stream;
 }
@@ -222,4 +239,18 @@ async function createAudioStreamFromUrl(
     throw new Error('Audio response did not include a body.');
   }
   return response.body;
+}
+
+function buildSonioxSttConfig(
+  model: string,
+  languageHints: string[],
+): SonioxSttSessionConfig {
+  return {
+    model,
+    audio_format: 'pcm_s16le',
+    sample_rate: config.sarvamSampleRate,
+    num_channels: 1,
+    ...(languageHints.length > 0 ? { language_hints: languageHints } : {}),
+    enable_language_identification: true,
+  };
 }

@@ -37,8 +37,13 @@ export const config = {
   sarvamModel: process.env.SARVAM_STREAM_MODEL?.trim() || 'saaras:v3',
   sarvamInputCodec: process.env.SARVAM_INPUT_CODEC?.trim() || 'pcm_s16le',
   sarvamSampleRate: readInt(process.env.SARVAM_SAMPLE_RATE, 16_000),
+  sarvamLanguageCode: process.env.SARVAM_LANGUAGE_CODE?.trim() || 'ml-IN',
   sonioxSttModel: process.env.SONIOX_STT_MODEL?.trim() || 'stt-rt-v5',
   sonioxStreamPaceMs: readInt(process.env.SONIOX_STREAM_PACE_MS, 60),
+  defaultSpokenLanguageHints: (process.env.SPOKEN_LANGUAGE_HINTS?.trim() || 'ml,ar')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean),
   highVadSensitivity: readBool(process.env.SARVAM_HIGH_VAD_SENSITIVITY, true),
   vadSignals: readBool(process.env.SARVAM_VAD_SIGNALS, true),
   // Rolling window of accumulated transcript text kept per language.

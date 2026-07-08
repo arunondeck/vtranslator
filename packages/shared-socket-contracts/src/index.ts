@@ -22,6 +22,8 @@ export type TranslationService = 'soniox' | 'sarvam';
 export type SpeakerStartPayload = {
   sessionId?: string;
   service?: TranslationService;
+  /** ISO language hints for providers that can bias spoken-language detection. */
+  spokenLanguageHints?: string[];
 };
 export type SpeakerAudioFramePayload = {
   sessionId: string;
