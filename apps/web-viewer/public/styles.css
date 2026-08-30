@@ -180,11 +180,22 @@ h1 {
   width: min(100%, 280px);
 }
 
-.input-settings {
+.speaker-settings {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   width: min(100%, 580px);
+}
+
+.viewer-header {
+  align-items: end;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.language-selector {
+  flex: 0 0 min(100%, 240px);
 }
 
 .service-selector span {
@@ -233,33 +244,6 @@ h1 {
 }
 
 .recording-status.is-error { color: #b03a2e; }
-
-.language-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 20px;
-}
-
-.language-option {
-  background: #f7fafc;
-  border: 2px solid #d9e3ee;
-  border-radius: 16px;
-  color: #172033;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 700;
-  padding: 16px 18px;
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.language-option:hover { border-color: #48a6a7; }
-.language-option.is-selected {
-  background: #e8f7f8;
-  border-color: #246d75;
-  color: #1d5a61;
-}
 
 .transcript-card {
   background: #f7fafc;
@@ -314,7 +298,24 @@ h1 {
 @media (max-width: 720px) {
   .hero { display: grid; padding: 28px; }
   .brand-card { align-self: stretch; }
-  .input-settings { grid-template-columns: 1fr; }
-  .language-grid { grid-template-columns: 1fr; }
-  .status-grid { grid-template-columns: 1fr; }
+  .speaker-settings { grid-template-columns: 1fr; }
+  .viewer-header { align-items: end; gap: 12px; }
+  .viewer-header h2 { font-size: 1.22rem; }
+  .panel-subtitle { font-size: 0.82rem; }
+  .language-selector {
+    flex: 0 0 88px;
+    width: 88px;
+  }
+  .language-selector span { display: none; }
+  .language-selector select { padding: 10px 12px; }
+  .status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .status-card {
+    min-height: 76px;
+    padding: 12px;
+  }
+  .status-card:first-child {
+    grid-column: 1 / -1;
+  }
 }

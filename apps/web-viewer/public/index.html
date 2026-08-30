@@ -30,24 +30,17 @@
         <div class="error-banner" id="speaker-error" role="alert" hidden></div>
 
         <div class="mic-controls">
-          <label class="service-selector">
-            <span>Translation service</span>
-            <select id="translation-service" aria-label="Translation service">
-              <option value="soniox" selected>Soniox</option>
-              <option value="sarvam">Sarvam</option>
-            </select>
-          </label>
-          <div class="input-settings" aria-label="Input language settings">
-            <label class="service-selector">
-              <span>Input mode</span>
-              <select id="input-mode" aria-label="Input mode">
-                <option value="mixed" selected>Mixed</option>
-                <option value="single">Single</option>
-              </select>
-            </label>
+          <div class="speaker-settings" aria-label="Speech settings">
             <label class="service-selector">
               <span>Primary language</span>
               <select id="primary-language" aria-label="Primary input language"></select>
+            </label>
+            <label class="service-selector">
+              <span>Translation service</span>
+              <select id="translation-service" aria-label="Translation service">
+                <option value="soniox" selected>Soniox</option>
+                <option value="sarvam">Sarvam</option>
+              </select>
             </label>
           </div>
           <button type="button" id="main-action" class="main-button" disabled aria-label="Start or stop talking">Start Talking</button>
@@ -56,12 +49,16 @@
       </section>
 
       <section class="viewer-panel" aria-label="Translation viewer">
-        <div class="panel-header">
-          <h2>Live translation</h2>
-          <p class="panel-subtitle">Choose a language to display the transcript.</p>
+        <div class="panel-header viewer-header">
+          <div>
+            <h2>Live translation</h2>
+            <p class="panel-subtitle">Choose a language to display the transcript.</p>
+          </div>
+          <label class="service-selector language-selector">
+            <span>Language</span>
+            <select id="language-options" aria-label="Translation language"></select>
+          </label>
         </div>
-
-        <div class="language-grid" id="language-options" role="radiogroup" aria-label="Translation language"></div>
 
         <div class="error-banner" id="viewer-error" role="alert" hidden></div>
 
