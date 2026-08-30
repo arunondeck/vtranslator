@@ -4,6 +4,7 @@ import {
   SOCKET_EVENTS,
   type ClientToServerEvents,
   type ServerToClientEvents,
+  type SpeakerInputMode,
   type SpeakerAudioFramePayload,
   type SocketErrorPayload,
   type TranslationService,
@@ -51,7 +52,7 @@ const STOP_GRACE_MS = 1_200;
 export function registerSocketHandlers(io: RealtimeServer): void {
   io.on('connection', (socket) => {
     socket.on(SOCKET_EVENTS.SPEAKER_START, (payload) => {
-      void startSpeakerSession(io, socket, payload?.sessionId, payload?.service);
+      void startSpeakerSession(io, socket, payload);
     });
 
     socket.on(SOCKET_EVENTS.SPEAKER_AUDIO_FRAME, (payload) => {
@@ -166,17 +167,27 @@ export function registerSocketHandlers(io: RealtimeServer): void {
 async function startSpeakerSession(
   io: RealtimeServer,
   socket: RealtimeSocket,
-  requestedSessionId: string | undefined,
-  requestedService: TranslationService | undefined,
+  payload:
+    | {
+        sessionId?: string;
+        service?: TranslationService;
+        inputMode?: SpeakerInputMode;
+        inputLanguage?: string;
+        outputLanguages?: SupportedLanguage[];
+      }
+    | undefined,
 ): Promise<void> {
-  const session = sessionStore.create(socket.id, requestedSessionId);
+  const session = sessionStore.create(socket.id, payload?.sessionId);
   await socket.join(roomFor(session.sessionId));
-  const service = readTranslationService(requestedService);
+  const service = readTranslationService(payload?.service);
   socket.data.speakerService = service;
 
   console.info('[socket] starting speaker session', {
     sessionId: session.sessionId,
     service,
+    inputMode: payload?.inputMode,
+    inputLanguage: payload?.inputLanguage,
+    outputLanguages: payload?.outputLanguages,
     socketId: socket.id,
   });
 
@@ -184,7 +195,11 @@ async function startSpeakerSession(
     const callbacks = buildStreamCallbacks(io, socket, session);
     const stream =
       service === 'soniox'
-        ? await createSonioxTranslateStream(callbacks)
+        ? await createSonioxTranslateStream(callbacks, {
+            inputMode: payload?.inputMode,
+            inputLanguage: payload?.inputLanguage,
+            outputLanguages: payload?.outputLanguages,
+          })
         : await createTranslateStream(callbacks);
     sessionStore.attachStream(session, stream);
   } catch (error) {
@@ -250,6 +265,9 @@ function buildStreamCallbacks(
         );
       });
     },
+    onTranslations: (translations) => {
+      handleTranslatedUtteranceBatch(io, session, translations);
+    },
     onError: (message) => {
       logSocketError('stream error', message, {
         sessionId: session.sessionId,
@@ -265,6 +283,35 @@ function buildStreamCallbacks(
       );
     },
   };
+}
+
+function handleTranslatedUtteranceBatch(
+  io: RealtimeServer,
+  session: StoredSession,
+  translations: Partial<Record<SupportedLanguage, string>>,
+): void {
+  if (session.endedAt) return;
+
+  const entries = Object.entries(translations).filter(
+    (entry): entry is [SupportedLanguage, string] =>
+      isSupportedLanguage(entry[0]) && Boolean(entry[1]?.trim()),
+  );
+  if (entries.length === 0) return;
+
+  session.latestSequence += 1;
+  const updatedAt = new Date().toISOString();
+
+  for (const [language, translation] of entries) {
+    const text = sessionStore.appendUtterance(session, language, translation);
+    emitLanguageUpdate(io, session, language, text, updatedAt);
+  }
+
+  io.to(roomFor(session.sessionId)).emit(SOCKET_EVENTS.TRANSCRIPT_ALL, {
+    sessionId: session.sessionId,
+    transcripts: { ...session.transcripts },
+    sequence: session.latestSequence,
+    updatedAt,
+  });
 }
 
 async function handleFinalUtterance(

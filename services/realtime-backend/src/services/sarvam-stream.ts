@@ -1,10 +1,12 @@
 import { SarvamAI, SarvamAIClient } from 'sarvamai';
+import type { SupportedLanguage } from '@translator/shared-types';
 import { config } from '../config.js';
 
 export type TranslateStreamCallbacks = {
   onSpeechStart?: () => void;
   onSpeechEnd?: () => void;
   onTranslation: (englishText: string) => void;
+  onTranslations?: (translations: Partial<Record<SupportedLanguage, string>>) => void;
   onError?: (message: string) => void;
   onClose?: () => void;
 };

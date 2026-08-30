@@ -7,3 +7,4 @@ apps/*/ios/
 .env
 *.log
 coverage/
+.pnpm-store/

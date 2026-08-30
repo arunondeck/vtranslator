@@ -33,10 +33,23 @@
           <label class="service-selector">
             <span>Translation service</span>
             <select id="translation-service" aria-label="Translation service">
-              <option value="soniox" selected>Sonic</option>
+              <option value="soniox" selected>Soniox</option>
               <option value="sarvam">Sarvam</option>
             </select>
           </label>
+          <div class="input-settings" aria-label="Input language settings">
+            <label class="service-selector">
+              <span>Input mode</span>
+              <select id="input-mode" aria-label="Input mode">
+                <option value="mixed" selected>Mixed</option>
+                <option value="single">Single</option>
+              </select>
+            </label>
+            <label class="service-selector">
+              <span>Primary language</span>
+              <select id="primary-language" aria-label="Primary input language"></select>
+            </label>
+          </div>
           <button type="button" id="main-action" class="main-button" disabled aria-label="Start or stop talking">Start Talking</button>
           <p class="recording-status" id="status-text" aria-live="polite">Idle</p>
         </div>

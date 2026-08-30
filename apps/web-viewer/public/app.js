@@ -1,12 +1,19 @@
-const LANGUAGE_LABELS = {
+const DEFAULT_LANGUAGE_LABELS = {
   en: 'English',
   ml: 'Malayalam',
+  ar: 'Arabic',
   hi: 'Hindi',
   bn: 'Bengali',
+  ms: 'Malay',
 };
-const SUPPORTED_LANGUAGES = Object.keys(LANGUAGE_LABELS);
-const EMPTY_TRANSCRIPTS = { en: '', ml: '', hi: '', bn: '' };
+const DEFAULT_OUTPUT_LANGUAGES = ['hi', 'ml', 'en', 'bn', 'ms'];
+const DEFAULT_INPUT_LANGUAGES = ['en', 'ml', 'ar', 'ms', 'hi'];
+const EMPTY_TRANSCRIPTS = DEFAULT_OUTPUT_LANGUAGES.reduce((transcripts, language) => {
+  transcripts[language] = '';
+  return transcripts;
+}, {});
 const TRANSLATION_SERVICES = ['soniox', 'sarvam'];
+const INPUT_MODES = ['mixed', 'single'];
 
 const SOCKET_EVENTS = {
   SPEAKER_START: 'speaker:start',
@@ -56,6 +63,17 @@ const state = {
   viewerJoined: false,
   selectedLanguage: 'en',
   selectedService: 'soniox',
+  inputMode: 'mixed',
+  selectedInputLanguage: 'en',
+  inputLanguages: DEFAULT_INPUT_LANGUAGES.map((code) => ({
+    code,
+    label: DEFAULT_LANGUAGE_LABELS[code] ?? code.toUpperCase(),
+  })),
+  outputLanguages: DEFAULT_OUTPUT_LANGUAGES.map((code) => ({
+    code,
+    label: DEFAULT_LANGUAGE_LABELS[code] ?? code.toUpperCase(),
+  })),
+  languageLabels: { ...DEFAULT_LANGUAGE_LABELS },
   sonioxConfigured: undefined,
   transcripts: { ...EMPTY_TRANSCRIPTS },
   sequence: 0,
@@ -70,6 +88,8 @@ const elements = {
   speakerError: document.querySelector('#speaker-error'),
   mainAction: document.querySelector('#main-action'),
   translationService: document.querySelector('#translation-service'),
+  inputMode: document.querySelector('#input-mode'),
+  primaryLanguage: document.querySelector('#primary-language'),
   statusText: document.querySelector('#status-text'),
   languageOptions: document.querySelector('#language-options'),
   viewerError: document.querySelector('#viewer-error'),
@@ -90,8 +110,15 @@ document.querySelector('[data-site-version]').textContent = config.SITE_VERSION;
 document.title = `${config.SITE_NAME} v${config.SITE_VERSION}`;
 
 renderLanguageOptions();
+renderInputControls();
 elements.translationService.addEventListener('change', () => {
   selectTranslationService(elements.translationService.value);
+});
+elements.inputMode.addEventListener('change', () => {
+  selectInputMode(elements.inputMode.value);
+});
+elements.primaryLanguage.addEventListener('change', () => {
+  selectInputLanguage(elements.primaryLanguage.value);
 });
 elements.mainAction.addEventListener('click', () => void handleMainAction());
 render();
@@ -100,22 +127,35 @@ loadSocketIoClient();
 
 function renderLanguageOptions() {
   elements.languageOptions.replaceChildren(
-    ...SUPPORTED_LANGUAGES.map((language) => {
+    ...state.outputLanguages.map(({ code: language, label }) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'language-option';
       button.dataset.language = language;
       button.setAttribute('role', 'radio');
       button.setAttribute('aria-checked', String(language === state.selectedLanguage));
-      button.textContent = LANGUAGE_LABELS[language];
+      button.textContent = label;
       button.addEventListener('click', () => selectLanguage(language));
       return button;
     }),
   );
 }
 
+function renderInputControls() {
+  elements.inputMode.value = state.inputMode;
+  elements.primaryLanguage.replaceChildren(
+    ...state.inputLanguages.map(({ code, label }) => {
+      const option = document.createElement('option');
+      option.value = code;
+      option.textContent = label;
+      option.selected = code === state.selectedInputLanguage;
+      return option;
+    }),
+  );
+}
+
 function selectLanguage(language) {
-  if (!SUPPORTED_LANGUAGES.includes(language)) return;
+  if (!state.outputLanguages.some((option) => option.code === language)) return;
 
   state.selectedLanguage = language;
   state.viewerError = undefined;
@@ -127,6 +167,31 @@ function selectLanguage(language) {
   } else if (socket?.connected && state.speakerSessionId) {
     joinViewer(state.speakerSessionId);
   }
+}
+
+function selectInputMode(mode) {
+  if (!INPUT_MODES.includes(mode) || state.recording === 'recording') {
+    elements.inputMode.value = state.inputMode;
+    return;
+  }
+
+  state.inputMode = mode;
+  state.speakerError = undefined;
+  render();
+}
+
+function selectInputLanguage(language) {
+  if (
+    !state.inputLanguages.some((option) => option.code === language) ||
+    state.recording === 'recording'
+  ) {
+    elements.primaryLanguage.value = state.selectedInputLanguage;
+    return;
+  }
+
+  state.selectedInputLanguage = language;
+  state.speakerError = undefined;
+  render();
 }
 
 function selectTranslationService(service) {
@@ -146,6 +211,7 @@ async function loadSonioxConfig() {
     if (!response.ok) throw new Error(`Soniox config failed (${response.status})`);
     const sonioxConfig = await response.json();
     state.sonioxConfigured = Boolean(sonioxConfig.configured);
+    applyLanguageConfig(sonioxConfig);
   } catch {
     state.sonioxConfigured = false;
   }
@@ -293,6 +359,9 @@ async function startTalking() {
     state.viewerJoined = false;
     socket.emit(SOCKET_EVENTS.SPEAKER_START, {
       service: state.selectedService,
+      inputMode: state.inputMode,
+      inputLanguage: state.selectedInputLanguage,
+      outputLanguages: state.outputLanguages.map((language) => language.code),
     });
   } catch (error) {
     state.speakerError = error instanceof Error ? error.message : 'Recording failed.';
@@ -338,7 +407,8 @@ async function stopRecording(emitStop) {
 
 function renderTranscript() {
   const text = state.transcripts[state.selectedLanguage];
-  elements.selectedLanguageLabel.textContent = LANGUAGE_LABELS[state.selectedLanguage];
+  elements.selectedLanguageLabel.textContent =
+    state.languageLabels[state.selectedLanguage] ?? state.selectedLanguage.toUpperCase();
   elements.transcript.textContent = text || 'Waiting for translated subtitles...';
   if (text) {
     elements.transcript.scrollTop = elements.transcript.scrollHeight;
@@ -376,6 +446,65 @@ function formatSocketError(error) {
   return parts.join('\n');
 }
 
+function applyLanguageConfig(sonioxConfig) {
+  const inputLanguages = normalizeLanguageOptions(
+    sonioxConfig.inputLanguages,
+    state.inputLanguages,
+  );
+  const outputLanguages = normalizeLanguageOptions(
+    sonioxConfig.outputLanguages,
+    state.outputLanguages,
+  );
+
+  state.inputLanguages = inputLanguages;
+  state.outputLanguages = outputLanguages;
+  state.languageLabels = {
+    ...state.languageLabels,
+    ...Object.fromEntries(
+      [...inputLanguages, ...outputLanguages].map(({ code, label }) => [
+        code,
+        label,
+      ]),
+    ),
+  };
+  state.inputMode = INPUT_MODES.includes(sonioxConfig.defaultInputMode)
+    ? sonioxConfig.defaultInputMode
+    : state.inputMode;
+  state.selectedInputLanguage = inputLanguages.some(
+    (language) => language.code === sonioxConfig.defaultInputLanguage,
+  )
+    ? sonioxConfig.defaultInputLanguage
+    : inputLanguages[0]?.code ?? state.selectedInputLanguage;
+
+  if (!outputLanguages.some((language) => language.code === state.selectedLanguage)) {
+    state.selectedLanguage = outputLanguages[0]?.code ?? state.selectedLanguage;
+  }
+
+  for (const { code } of outputLanguages) {
+    state.transcripts[code] ??= '';
+  }
+
+  renderInputControls();
+  renderLanguageOptions();
+  renderTranscript();
+}
+
+function normalizeLanguageOptions(value, fallback) {
+  if (!Array.isArray(value)) return fallback;
+  const options = value
+    .map((entry) => {
+      const code = typeof entry?.code === 'string' ? entry.code.trim().toLowerCase() : '';
+      if (!code) return undefined;
+      const label =
+        typeof entry?.label === 'string' && entry.label.trim()
+          ? entry.label.trim()
+          : DEFAULT_LANGUAGE_LABELS[code] ?? code.toUpperCase();
+      return { code, label };
+    })
+    .filter(Boolean);
+  return options.length ? options : fallback;
+}
+
 function render() {
   elements.connection.className = `tone-${state.connection}`;
   elements.connection.textContent = state.connection;
@@ -397,6 +526,10 @@ function render() {
   elements.statusText.classList.toggle('is-error', state.recording === 'error');
   elements.translationService.value = state.selectedService;
   elements.translationService.disabled = isRecording || isBusy;
+  elements.inputMode.value = state.inputMode;
+  elements.inputMode.disabled = isRecording || isBusy;
+  elements.primaryLanguage.value = state.selectedInputLanguage;
+  elements.primaryLanguage.disabled = isRecording || isBusy;
 
   if (
     state.selectedService === 'soniox' &&
@@ -404,7 +537,7 @@ function render() {
     !state.speakerError
   ) {
     elements.speakerError.textContent =
-      'Sonic is selected, but the backend Soniox endpoint is not configured.';
+      'Soniox is selected, but the backend Soniox endpoint is not configured.';
     elements.speakerError.hidden = false;
   } else if (state.speakerError) {
     elements.speakerError.textContent = state.speakerError;

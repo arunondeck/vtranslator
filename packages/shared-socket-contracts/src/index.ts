@@ -19,9 +19,13 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export type TranslationService = 'soniox' | 'sarvam';
+export type SpeakerInputMode = 'mixed' | 'single';
 export type SpeakerStartPayload = {
   sessionId?: string;
   service?: TranslationService;
+  inputMode?: SpeakerInputMode;
+  inputLanguage?: string;
+  outputLanguages?: SupportedLanguage[];
 };
 export type SpeakerAudioFramePayload = {
   sessionId: string;

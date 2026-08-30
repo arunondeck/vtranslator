@@ -1,4 +1,4 @@
-export type SupportedLanguage = 'en' | 'ml' | 'hi' | 'bn';
+export type SupportedLanguage = 'en' | 'ml' | 'hi' | 'bn' | 'ms';
 
 export type TranscriptMap = Record<SupportedLanguage, string>;
 
@@ -11,13 +11,20 @@ export type TranscriptUpdate = {
   updatedAt: string;
 };
 
-export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'ml', 'hi', 'bn'];
+export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
+  'en',
+  'ml',
+  'hi',
+  'bn',
+  'ms',
+];
 
 export const LANGUAGE_LABELS: Record<SupportedLanguage, string> = {
   en: 'English',
   ml: 'Malayalam',
   hi: 'Hindi',
   bn: 'Bengali',
+  ms: 'Malay',
 };
 
 export const EMPTY_TRANSCRIPTS: TranscriptMap = {
@@ -25,4 +32,5 @@ export const EMPTY_TRANSCRIPTS: TranscriptMap = {
   ml: '',
   hi: '',
   bn: '',
+  ms: '',
 };

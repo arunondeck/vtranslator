@@ -180,6 +180,13 @@ h1 {
   width: min(100%, 280px);
 }
 
+.input-settings {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 580px);
+}
+
 .service-selector span {
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -307,6 +314,7 @@ h1 {
 @media (max-width: 720px) {
   .hero { display: grid; padding: 28px; }
   .brand-card { align-self: stretch; }
+  .input-settings { grid-template-columns: 1fr; }
   .language-grid { grid-template-columns: 1fr; }
   .status-grid { grid-template-columns: 1fr; }
 }

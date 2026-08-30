@@ -16,6 +16,18 @@ function readInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  ml: 'Malayalam',
+  ar: 'Arabic',
+  ms: 'Malay',
+  hi: 'Hindi',
+  bn: 'Bengali',
+};
+
+const DEFAULT_SONIOX_INPUT_LANGUAGES = ['en', 'ml', 'ar', 'ms', 'hi'];
+const DEFAULT_SONIOX_OUTPUT_LANGUAGES = ['hi', 'ml', 'en', 'bn', 'ms'];
+
 export const config = {
   port: readPort(process.env.PORT),
   host: process.env.HOST?.trim() || '0.0.0.0',
@@ -39,11 +51,31 @@ export const config = {
   sarvamSampleRate: readInt(process.env.SARVAM_SAMPLE_RATE, 16_000),
   sonioxSttModel: process.env.SONIOX_STT_MODEL?.trim() || 'stt-rt-v5',
   sonioxStreamPaceMs: readInt(process.env.SONIOX_STREAM_PACE_MS, 60),
+  sonioxInputLanguages: readLanguageList(
+    process.env.SONIOX_INPUT_LANGUAGES,
+    DEFAULT_SONIOX_INPUT_LANGUAGES,
+  ),
+  sonioxOutputLanguages: readLanguageList(
+    process.env.SONIOX_OUTPUT_LANGUAGES,
+    DEFAULT_SONIOX_OUTPUT_LANGUAGES,
+  ),
+  sonioxDefaultInputLanguage: readLanguage(
+    process.env.SONIOX_DEFAULT_INPUT_LANGUAGE,
+    'en',
+  ),
+  sonioxDefaultInputMode:
+    process.env.SONIOX_DEFAULT_INPUT_MODE?.trim() === 'single'
+      ? 'single'
+      : 'mixed',
   highVadSensitivity: readBool(process.env.SARVAM_HIGH_VAD_SENSITIVITY, true),
   vadSignals: readBool(process.env.SARVAM_VAD_SIGNALS, true),
   // Rolling window of accumulated transcript text kept per language.
   transcriptWindowChars: readInt(process.env.TRANSCRIPT_WINDOW_CHARS, 800),
 } as const;
+
+export function getLanguageLabel(language: string): string {
+  return LANGUAGE_LABELS[language] ?? language.toUpperCase();
+}
 
 function readCorsOrigin(value: string | undefined): string | string[] {
   const raw = value?.trim();
@@ -59,4 +91,18 @@ function normalizeOrigin(value: string): string {
     return value;
   }
   return `https://${value}`;
+}
+
+function readLanguageList(
+  value: string | undefined,
+  fallback: readonly string[],
+): string[] {
+  const languages = (value?.trim() ? value.split(',') : [...fallback])
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set(languages)];
+}
+
+function readLanguage(value: string | undefined, fallback: string): string {
+  return value?.trim().toLowerCase() || fallback;
 }
