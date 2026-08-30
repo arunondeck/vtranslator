@@ -38,6 +38,21 @@ const RECORDING_LABELS: Record<RecordingState, string> = {
   error: 'Error',
 };
 
+function formatSocketError(error: SocketErrorPayload): string {
+  const parts = [error.message || 'Backend error.'];
+  const details = [
+    error.code ? `code=${error.code}` : undefined,
+    error.service ? `service=${error.service}` : undefined,
+    error.sessionId ? `session=${error.sessionId}` : undefined,
+  ].filter(Boolean);
+
+  if (details.length > 0) {
+    parts.push(`Debug: ${details.join(', ')}`);
+  }
+
+  return parts.join('\n');
+}
+
 export default function App() {
   const socketRef = useRef<SpeakerSocket | null>(null);
   const streamerRef = useRef<PcmStreamer | null>(null);
@@ -135,11 +150,12 @@ export default function App() {
         }
       }
     };
-    const handleSpeakerError = ({ message }: SocketErrorPayload) => {
-      setErrorMessage(message || 'Backend error.');
+    const handleSpeakerError = (error: SocketErrorPayload) => {
+      const formattedError = formatSocketError(error);
+      setErrorMessage(formattedError);
       void stopRecording(false).finally(() => {
         if (mountedRef.current) {
-          setErrorMessage(message || 'Backend error.');
+          setErrorMessage(formattedError);
           setRecordingState('error');
         }
       });

@@ -161,6 +161,7 @@ h1 {
   font-weight: 700;
   margin-bottom: 20px;
   padding: 16px 18px;
+  white-space: pre-wrap;
 }
 
 .mic-controls {

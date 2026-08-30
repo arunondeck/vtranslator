@@ -218,8 +218,8 @@ function connectSocket() {
     render();
   });
 
-  socket.on(SOCKET_EVENTS.SPEAKER_ERROR, ({ message }) => {
-    state.speakerError = message || 'Backend error.';
+  socket.on(SOCKET_EVENTS.SPEAKER_ERROR, (error) => {
+    state.speakerError = formatSocketError(error);
     state.recording = 'error';
     render();
   });
@@ -358,6 +358,22 @@ function updateMeta(payload) {
   elements.updated.textContent = payload.updatedAt
     ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(payload.updatedAt))
     : 'Waiting for speech...';
+}
+
+function formatSocketError(error) {
+  if (!error) return 'Backend error.';
+  const parts = [error.message || 'Backend error.'];
+  const details = [
+    error.code ? `code=${error.code}` : undefined,
+    error.service ? `service=${error.service}` : undefined,
+    error.sessionId ? `session=${error.sessionId}` : undefined,
+  ].filter(Boolean);
+
+  if (details.length > 0) {
+    parts.push(`Debug: ${details.join(', ')}`);
+  }
+
+  return parts.join('\n');
 }
 
 function render() {

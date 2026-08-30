@@ -27,6 +27,7 @@ import { createSonioxTranslateStream } from './services/soniox.service.js';
 export type SocketData = {
   viewerSessionId?: string;
   viewerLanguage?: SupportedLanguage;
+  speakerService?: TranslationService;
 };
 
 type RealtimeServer = Server<
@@ -171,6 +172,13 @@ async function startSpeakerSession(
   const session = sessionStore.create(socket.id, requestedSessionId);
   await socket.join(roomFor(session.sessionId));
   const service = readTranslationService(requestedService);
+  socket.data.speakerService = service;
+
+  console.info('[socket] starting speaker session', {
+    sessionId: session.sessionId,
+    service,
+    socketId: socket.id,
+  });
 
   try {
     const callbacks = buildStreamCallbacks(io, socket, session);
@@ -180,11 +188,18 @@ async function startSpeakerSession(
         : await createTranslateStream(callbacks);
     sessionStore.attachStream(session, stream);
   } catch (error) {
+    logSocketError('stream init failed', error, {
+      sessionId: session.sessionId,
+      service,
+      socketId: socket.id,
+    });
     sessionStore.endSession(session);
     emitSpeakerError(
       socket,
       error instanceof Error ? error.message : 'Failed to start transcription.',
       'STREAM_INIT_FAILED',
+      session.sessionId,
+      service,
     );
     return;
   }
@@ -221,15 +236,33 @@ function buildStreamCallbacks(
     },
     onTranslation: (english) => {
       void handleFinalUtterance(io, session, english).catch((error: unknown) => {
+        logSocketError('translation failed', error, {
+          sessionId: session.sessionId,
+          service: socket.data.speakerService,
+          socketId: socket.id,
+        });
         emitSpeakerError(
           socket,
           error instanceof Error ? error.message : 'Translation failed.',
           'TRANSLATION_FAILED',
+          session.sessionId,
+          socket.data.speakerService,
         );
       });
     },
     onError: (message) => {
-      emitSpeakerError(socket, message, 'STREAM_ERROR');
+      logSocketError('stream error', message, {
+        sessionId: session.sessionId,
+        service: socket.data.speakerService,
+        socketId: socket.id,
+      });
+      emitSpeakerError(
+        socket,
+        message,
+        'STREAM_ERROR',
+        session.sessionId,
+        socket.data.speakerService,
+      );
     },
   };
 }
@@ -341,8 +374,15 @@ function emitSpeakerError(
   socket: RealtimeSocket,
   message: string,
   code?: string,
+  sessionId?: string,
+  service?: TranslationService,
 ): void {
-  const payload: SocketErrorPayload = { message, ...(code ? { code } : {}) };
+  const payload: SocketErrorPayload = {
+    message,
+    ...(code ? { code } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    ...(service ? { service } : {}),
+  };
   socket.emit(SOCKET_EVENTS.SPEAKER_ERROR, payload);
 }
 
@@ -357,4 +397,16 @@ function emitViewerError(
 
 function roomFor(sessionId: string): string {
   return `session:${sessionId}`;
+}
+
+function logSocketError(
+  label: string,
+  error: unknown,
+  context: Record<string, unknown>,
+): void {
+  const serialized =
+    error instanceof Error
+      ? { name: error.name, message: error.message, stack: error.stack }
+      : { error };
+  console.error(`[socket] ${label}`, { ...context, ...serialized });
 }

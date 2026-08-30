@@ -30,7 +30,12 @@ export type SpeakerAudioFramePayload = {
 };
 export type SpeakerStopPayload = { sessionId: string };
 export type SpeakerSessionCreatedPayload = { sessionId: string };
-export type SocketErrorPayload = { message: string; code?: string };
+export type SocketErrorPayload = {
+  message: string;
+  code?: string;
+  sessionId?: string;
+  service?: TranslationService;
+};
 export type SpeakerVadPayload = { sessionId: string; speaking: boolean };
 export type ViewerJoinPayload = {
   sessionId?: string;

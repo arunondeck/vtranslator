@@ -180,14 +180,14 @@ function connectSocket() {
     render();
   });
 
-  socket.on(SOCKET_EVENTS.SPEAKER_ERROR, ({ message }) => {
+  socket.on(SOCKET_EVENTS.SPEAKER_ERROR, (error) => {
     if (pendingMediaStream) {
       for (const track of pendingMediaStream.getTracks()) {
         track.stop();
       }
       pendingMediaStream = undefined;
     }
-    state.errorMessage = message || 'Backend error.';
+    state.errorMessage = formatSocketError(error);
     state.recording = 'error';
     render();
   });
@@ -331,6 +331,22 @@ function showError(message) {
 
 function hideError() {
   elements.error.hidden = true;
+}
+
+function formatSocketError(error) {
+  if (!error) return 'Backend error.';
+  const parts = [error.message || 'Backend error.'];
+  const details = [
+    error.code ? `code=${error.code}` : undefined,
+    error.service ? `service=${error.service}` : undefined,
+    error.sessionId ? `session=${error.sessionId}` : undefined,
+  ].filter(Boolean);
+
+  if (details.length > 0) {
+    parts.push(`Debug: ${details.join(', ')}`);
+  }
+
+  return parts.join('\n');
 }
 
 class MicrophonePermissionError extends Error {

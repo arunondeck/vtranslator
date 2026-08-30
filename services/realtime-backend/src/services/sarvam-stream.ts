@@ -35,6 +35,15 @@ class SarvamTranslateStream implements TranslateStream {
   constructor(private readonly callbacks: TranslateStreamCallbacks) {}
 
   async open(): Promise<void> {
+    console.info('[sarvam-stream] opening stream', {
+      model: config.sarvamModel,
+      inputCodec: config.sarvamInputCodec,
+      sampleRate: config.sarvamSampleRate,
+      highVadSensitivity: config.highVadSensitivity,
+      vadSignals: config.vadSignals,
+      hasApiKey: Boolean(config.sarvamApiKey),
+    });
+
     const client = new SarvamAIClient({ apiSubscriptionKey: config.sarvamApiKey });
     const socket = await client.speechToTextTranslateStreaming.connect({
       model: config.sarvamModel as SarvamAI.SpeechToTextTranslateModel,
@@ -50,14 +59,19 @@ class SarvamTranslateStream implements TranslateStream {
     this.socket = socket;
 
     socket.on('open', () => {
+      console.info('[sarvam-stream] socket open');
       this.ready = true;
       this.drainPending();
     });
     socket.on('message', (message) => this.handleMessage(message));
     socket.on('error', (error) => {
-      this.callbacks.onError?.(error?.message ?? 'Sarvam stream error.');
+      console.error('[sarvam-stream] socket error', serializeError(error));
+      this.callbacks.onError?.(
+        `Sarvam stream error: ${error?.message ?? 'Unknown socket error.'}`,
+      );
     });
-    socket.on('close', () => {
+    socket.on('close', (...args: unknown[]) => {
+      console.warn('[sarvam-stream] socket close', { args });
       this.ready = false;
       if (!this.closed) {
         this.callbacks.onClose?.();
@@ -80,7 +94,11 @@ class SarvamTranslateStream implements TranslateStream {
   flush(): void {
     if (this.closed) return;
     this.drainPending();
-    this.socket?.flush();
+    try {
+      this.socket?.flush();
+    } catch (error) {
+      this.handleSocketSendFailure(error);
+    }
   }
 
   close(): void {
@@ -103,10 +121,30 @@ class SarvamTranslateStream implements TranslateStream {
   }
 
   private transmit(base64Pcm16: string): void {
-    this.socket?.translate({
-      audio: base64Pcm16,
-      sample_rate: config.sarvamSampleRate,
+    try {
+      this.socket?.translate({
+        audio: base64Pcm16,
+        sample_rate: config.sarvamSampleRate,
+      });
+    } catch (error) {
+      this.handleSocketSendFailure(error);
+    }
+  }
+
+  private handleSocketSendFailure(error: unknown): void {
+    console.error('[sarvam-stream] socket send failed', {
+      ...serializeError(error),
+      ready: this.ready,
+      closed: this.closed,
+      pendingFrames: this.pending.length,
     });
+    this.ready = false;
+    this.pending.length = 0;
+    this.callbacks.onError?.(
+      `Sarvam stream send failed: ${
+        error instanceof Error ? error.message : 'Stream is not available.'
+      }`,
+    );
   }
 
   private handleMessage(
@@ -129,9 +167,23 @@ class SarvamTranslateStream implements TranslateStream {
 
     if (message.type === 'error') {
       const errorData = message.data as SarvamAI.ErrorData;
-      this.callbacks.onError?.(errorData.error ?? 'Sarvam stream error.');
+      console.error('[sarvam-stream] message error', errorData);
+      this.callbacks.onError?.(
+        `Sarvam stream message error: ${errorData.error ?? 'Unknown stream error.'}`,
+      );
     }
   }
+}
+
+function serializeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+  return { error };
 }
 
 /**
@@ -190,3 +242,4 @@ export async function createTranslateStream(
   await stream.open();
   return stream;
 }
+
